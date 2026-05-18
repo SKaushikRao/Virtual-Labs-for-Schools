@@ -1,0 +1,10 @@
+{
+  "name": "Remix: Virtual Science Lab",
+  "description": "Interactive NCERT-based practical learning platform using 3D and hand tracking.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
