@@ -7,35 +7,40 @@
       "step": 1,
       "type": "concept",
       "text_en": "Ohm's Law states that electric current (I) flowing through a conductor is directly proportional to the potential difference (V) across its ends, provided temperature and other physical parameters remain constant (V = I * R).",
-      "text_hi": "ओम का नियम कहता है कि यदि भौतिक अवस्थाएँ (जैसे तापमान) स्थिर रहें, तो चालक से प्रवाहित धारा (I) उसके सिरों पर विभवांतर (V) के सीधे समानुपाती होती है (V = I * R)।"
+      "text_hi": "ओम का नियम कहता है कि यदि भौतिक अवस्थाएँ (जैसे तापमान) स्थिर रहें, तो चालक से प्रवाहित धारा (I) उसके सिरों पर विभवांतर (V) के सीधे समानुपाती होती है (V = I * R)।",
+      "text_te": "ఓమ్ నియమం ప్రకారం, ఉష్ణోగ్రత స్థిరంగా ఉన్నప్పుడు, వాహకం గుండా ప్రవహించే విద్యుత్ ప్రవాహం (I) దాని రెండు చివరల మధ్య ఉన్న పొటెన్షియల్ తేడా (V) కి అనులోమానుపాతంలో ఉంటుంది (V = I * R)."
     },
     {
       "id": "ohms_circuit_connections",
       "step": 2,
       "type": "procedure",
       "text_en": "The ammeter has very low resistance and must always be connected in series to measure total circuit current. The voltmeter has high internal resistance and is connected in parallel across the resistor.",
-      "text_hi": "एमीटर का प्रतिरोध बहुत कम होता है और इसे श्रेणीक्रम (series) में जोड़ा जाता है। वोल्टमीटर का प्रतिरोध उच्च होता है और इसे प्रतिरोधक के समानांतर (parallel) जोड़ा जाता है।"
+      "text_hi": "एमीटर का प्रतिरोध बहुत कम होता है और इसे श्रेणीक्रम (series) में जोड़ा जाता है। वोल्टमीटर का प्रतिरोध उच्च होता है और इसे प्रतिरोधक के समानांतर (parallel) जोड़ा जाता है।",
+      "text_te": "అమ్మీటర్ కు అతి తక్కువ నిరోధం ఉంటుంది కాబట్టి విద్యుత్ ప్రవాహాన్ని కొలవడానికి దీనిని శ్రేణిలో (series) కలపాలి. వోల్ట్ మీటర్ కు ఎక్కువ నిరోధం ఉంటుంది కాబట్టి నిరోధానికి సమాంతరంగా (parallel) కలపాలి."
     },
     {
       "id": "ohms_rheostat_control",
       "step": 3,
       "type": "procedure",
       "text_en": "A rheostat is a variable resistor used to smoothly change the circuit current without interrupting the supply, allowing students to record multiple (V, I) data points.",
-      "text_hi": "धारा नियंत्रक (Rheostat) एक परिवर्ती प्रतिरोधक है जो सर्किट की धारा को बदलकर विभिन्न (V, I) रीडिंग लेने में मदद करता है।"
+      "text_hi": "धारा नियंत्रक (Rheostat) एक परिवर्ती प्रतिरोधक है जो सर्किट की धारा को बदलकर विभिन्न (V, I) रीडिंग लेने में मदद करता है।",
+      "text_te": "రియోస్టాట్ అనేది ఒక వేరియబుల్ రెసిస్టర్. సర్క్యూట్ లో విద్యుత్ ప్రవాహాన్ని సులభంగా మార్చి వివిధ (V, I) రీడింగులు తీసుకోవడానికి ఇది ఉపయోగపడుతుంది."
     },
     {
       "id": "ohms_graph_slope",
       "step": 4,
       "type": "theory",
       "text_en": "Plotting Voltage (V) on the y-axis against Current (I) on the x-axis yields a straight line passing through the origin. The slope of this line represents the electrical resistance R = ΔV / ΔI.",
-      "text_hi": "V को y-अक्ष और I को x-अक्ष पर रखकर खींचा गया ग्राफ मूल बिंदु से गुजरने वाली सीधी रेखा होता है। इस ग्राफ का ढलान (Slope) प्रतिरोध R = ΔV / ΔI को दर्शाता है।"
+      "text_hi": "V को y-अक्ष और I को x-अक्ष पर रखकर खींचा गया ग्राफ मूल बिंदु से गुजरने वाली सीधी रेखा होता है। इस ग्राफ का ढलान (Slope) प्रतिरोध R = ΔV / ΔI को दर्शाता है।",
+      "text_te": "V మరియు I గ్రాఫ్ మూలబిందువు గుండా వెళ్లే సరళరేఖ అవుతుంది. ఈ రేఖ వాలు (Slope) విద్యుత్ నిరోధం R = ΔV / ΔI ని తెలుపుతుంది."
     },
     {
       "id": "ohms_limitations",
       "step": 0,
       "type": "limitations",
       "text_en": "Ohm's Law holds for metallic conductors at constant temperature. It is not obeyed by non-ohmic devices like semiconductor diodes, LEDs, and electrolytes.",
-      "text_hi": "ओम का नियम केवल स्थिर तापमान पर धातु चालकों के लिए लागू होता है। डायोड, एलईडी और ट्रांजिस्टर जैसे गैर-ओमीय घटकों पर यह लागू नहीं होता।"
+      "text_hi": "ओम का नियम केवल स्थिर तापमान पर धातु चालकों के लिए लागू होता है। डायोड, एलईडी और ट्रांजिस्टर जैसे गैर-ओमीय घटकों पर यह लागू नहीं होता।",
+      "text_te": "ఓమ్ నియమం స్థిర ఉష్ణోగ్రత వద్ద లోహ వాహకాలకు మాత్రమే వర్తిస్తుంది. డయోడ్లు, LED లు మరియు ఎలక్ట్రోలైట్లు ఓమ్ నియమాన్ని పాటించవు."
     }
   ]
 }

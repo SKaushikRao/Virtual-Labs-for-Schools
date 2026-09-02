@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 export type ViewState = 'landing' | 'student-portal' | 'teacher-portal' | 'experiment-selection' | 'experiment';
-export type Language = 'en' | 'hi';
+export type Language = 'en' | 'hi' | 'te';
 
 interface AppState {
   currentView: ViewState;

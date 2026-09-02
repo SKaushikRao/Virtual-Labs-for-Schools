@@ -102,6 +102,15 @@ export const LabTopBar: React.FC<LabTopBarProps> = ({
           >
             HI
           </button>
+          <button
+            onClick={() => setLanguage('te')}
+            className={cn(
+              "px-2 py-1 text-xs font-mono rounded-lg transition-all",
+              selectedLanguage === 'te' ? "bg-white/20 text-cyan-300 font-bold" : "text-white/60 hover:text-white"
+            )}
+          >
+            TE
+          </button>
         </div>
 
         {/* Camera Tracking Status */}

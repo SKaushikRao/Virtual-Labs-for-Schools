@@ -22,7 +22,7 @@ interface Message {
   sender: 'user' | 'mentor';
   text: string;
   audioBase64?: string;
-  language?: 'en' | 'hi';
+  language?: 'en' | 'hi' | 'te';
   timestamp: string;
 }
 
@@ -44,6 +44,8 @@ export const AIMentorPanel: React.FC = () => {
       text:
         selectedLanguage === 'hi'
           ? 'नमस्ते! मैं आरव हूँ, आपका साइंस लैब बडी। कोई भी सवाल पूछें या किसी स्टेप में मदद चाहिए तो बेझिझक कहें!'
+          : selectedLanguage === 'te'
+          ? 'నమస్కారం! నేను ఆరవ్, మీ సైన్స్ ల్యాబ్ మిత్రుడిని. ఏదైనా సందేహం ఉంటే లేదా సహాయం కావాలంటే అడగండి!'
           : "Hey there! I'm Aarav, your senior lab buddy. Ask me anything about what's happening or if you get stuck!",
       language: selectedLanguage,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -331,6 +333,15 @@ export const AIMentorPanel: React.FC = () => {
                 >
                   HI
                 </button>
+                <button
+                  onClick={() => setLanguage('te')}
+                  className={cn(
+                    'px-2 py-0.5 text-[10px] font-mono rounded cursor-pointer transition-all',
+                    selectedLanguage === 'te' ? 'bg-purple-600 text-white font-bold' : 'text-white/60'
+                  )}
+                >
+                  TE
+                </button>
               </div>
 
               <button
@@ -462,6 +473,8 @@ export const AIMentorPanel: React.FC = () => {
                   placeholder={
                     selectedLanguage === 'hi'
                       ? 'आरव से कोई भी सवाल पूछें...'
+                      : selectedLanguage === 'te'
+                      ? 'ఆరవ్ ని ఏదైనా ప్రశ్న అడగండి...'
                       : 'Ask Aarav anything about the lab...'
                   }
                   className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-4 py-2.5 text-xs text-white placeholder-white/40 focus:outline-none focus:border-purple-500/50 transition-colors"

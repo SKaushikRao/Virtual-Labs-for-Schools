@@ -7,14 +7,24 @@
       "step": 1,
       "type": "concept",
       "text_en": "When light travels from an optically rarer medium (air) to a denser medium (glass), it bends towards the normal following Snell's Law: sin(i) / sin(r) = μ.",
-      "text_hi": "जब प्रकाश विरल माध्यम (हवा) से सघन माध्यम (कांच) में प्रवेश करता है, तो यह स्नेल के नियम (sin i / sin r = μ) के अनुसार अभिलंब की ओर झुकता है।"
+      "text_hi": "जब प्रकाश विरल माध्यम (हवा) से सघन माध्यम (कांच) में प्रवेश करता है, तो यह स्नेल के नियम (sin i / sin r = μ) के अनुसार अभिलंब की ओर झुकता है।",
+      "text_te": "కాంతి విరళ యానకం (గాలి) నుండి సాంద్రతర యానకం (గాజు) లోకి ప్రవేశించినప్పుడు, స్నెల్ నియమం (sin i / sin r = μ) ప్రకారం లంబం వైపు వంగుతుంది."
     },
     {
       "id": "refr_step2_lateral",
       "step": 2,
       "type": "result",
       "text_en": "The emergent ray is parallel to the incident ray but shifted sideways; this perpendicular distance is called lateral displacement.",
-      "text_hi": "निर्गत किरण आपतित किरण के समानांतर होती है लेकिन किनारे खिसकी होती है, जिसे पार्श्विक विस्थापन (lateral displacement) कहते हैं।"
+      "text_hi": "निर्गत किरण आपतित किरण के समानांतर होती है लेकिन किनारे खिसकी होती है, जिसे पार्श्विक विस्थापन (lateral displacement) कहते हैं।",
+      "text_te": "బహిర్గత కిరణం పతన కిరణానికి సమాంతరంగా ఉంటుంది, కానీ పక్కకు జరుగుతుంది. ఈ లంబ దూరాన్ని పార్శ్వ స్థానభ్రంశం (lateral displacement) అంటారు."
+    },
+    {
+      "id": "refr_refractive_index",
+      "step": 3,
+      "type": "theory",
+      "text_en": "The refractive index of glass is approximately 1.50, which means light travels 1.5 times slower in glass than in vacuum.",
+      "text_hi": "कांच का अपवर्तनांक लगभग 1.50 होता है, जिसका अर्थ है कि कांच में प्रकाश की चाल निर्वात की तुलना में 1.5 गुना धीमी होती है।",
+      "text_te": "గాజు యొక్క వక్రీభవన గుణకం సుమారు 1.50 ఉంటుంది, అనగా శూన్యంలో కంటే గాజులో కాంతి వేగం 1.5 రెట్లు తగ్గుతుంది."
     }
   ]
 }

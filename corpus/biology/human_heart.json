@@ -1,27 +1,46 @@
 {
   "experiment": "human-heart",
-  "title": "Human Heart & Circulation Interactive",
+  "title": "3D Human Heart & Blood Circulation Anatomy",
   "chunks": [
     {
-      "id": "heart_step1_chambers",
+      "id": "heart_ra_deox",
       "step": 1,
-      "type": "concept",
-      "text_en": "The human heart has 4 muscular chambers: two upper atria for receiving blood and two lower muscular ventricles for pumping blood.",
-      "text_hi": "मानव हृदय में 4 कक्ष होते हैं: रक्त प्राप्त करने के लिए दो अलिंद (atria) और रक्त पंप करने के लिए दो निलय (ventricles)।"
+      "type": "anatomy",
+      "text_en": "The Right Atrium receives deoxygenated blood returning from the upper and lower body via Superior and Inferior Vena Cava.",
+      "text_hi": "दायां अलिंद (Right Atrium) सुपीरियर और इन्फीरियर वेना कावा के माध्यम से पूरे शरीर से ऑक्सीजन रहित रक्त प्राप्त करता है।",
+      "text_te": "కుడి కర్ణిక (Right Atrium) శరీర భాగాల నుండి బృహత్ సిరల (Vena Cava) ద్వారా ఆక్సిజన్ రహిత రక్తమును స్వీకరిస్తుంది."
     },
     {
-      "id": "heart_step2_oxygenated",
+      "id": "heart_rv_pulmonary",
       "step": 2,
-      "type": "concept",
-      "text_en": "Oxygenated blood flows from the lungs into the left atrium via pulmonary veins, then into the left ventricle, and is pumped throughout the body by the aorta.",
-      "text_hi": "ऑक्सीजन युक्त शुद्ध रक्त फेफड़ों से फुफ्फुस शिरा द्वारा बाएं अलिंद में आता है, फिर बाएं निलय से महाधमनी (aorta) द्वारा शरीर में जाता है।"
+      "type": "anatomy",
+      "text_en": "The Right Ventricle pumps deoxygenated blood to the lungs through the Pulmonary Artery for gaseous exchange and oxygenation.",
+      "text_hi": "दायां निलय (Right Ventricle) फेफड़ों में गैसीय विनिमय और ऑक्सीजन भरने के लिए पल्मोनरी धमनी के माध्यम से रक्त भेजता है।",
+      "text_te": "కుడి జఠరిక (Right Ventricle) ఆక్సిజన్ రహిత రక్తాన్ని శుభ్రపరచడానికి పుపుస ధమని (Pulmonary Artery) ద్వారా ఊపిరితిత్తులకు పంపుతుంది."
     },
     {
-      "id": "heart_step3_deoxygenated",
+      "id": "heart_la_oxygenated",
       "step": 3,
+      "type": "anatomy",
+      "text_en": "The Left Atrium receives oxygen-rich blood returning from the lungs through the Pulmonary Veins.",
+      "text_hi": "बायां अलिंद (Left Atrium) फेफड़ों से पल्मोनरी शिराओं द्वारा ऑक्सीजन युक्त शुद्ध रक्त प्राप्त करता है।",
+      "text_te": "ఎడమ కర్ణిక (Left Atrium) ఊపిరితిత్తుల నుండి పుపుస సిరల ద్వారా ఆక్సిజన్ తో కూడిన శుద్ధ రక్తాన్ని అందుకుంటుంది."
+    },
+    {
+      "id": "heart_lv_aorta",
+      "step": 4,
+      "type": "anatomy",
+      "text_en": "The Left Ventricle has the thickest muscular myocardium, generating high systolic pressure to pump oxygenated blood into the Aorta.",
+      "text_hi": "बायां निलय (Left Ventricle) सबसे मोटी मांसपेशियों वाला कक्ष होता है, जो महाधमनी (Aorta) में उच्च दाब से रक्त पंप करता है।",
+      "text_te": "ఎడమ జఠరిక (Left Ventricle) అత్యంత మందపాటి కండర గోడలను కలిగి ఉండి, బృహద్ధమని (Aorta) ద్వారా శరీరం మొత్తానికి అధిక పీడనంతో రక్తాన్ని పంపుతుంది."
+    },
+    {
+      "id": "heart_double_circulation",
+      "step": 0,
       "type": "concept",
-      "text_en": "Deoxygenated blood returns from body tissues via the vena cava into the right atrium, moving to the right ventricle which pumps it to the lungs for re-oxygenation.",
-      "text_hi": "अशुद्ध रक्त महाशिरा (vena cava) द्वारा दाएं अलिंद में आता है और दाएं निलय से फेफड़ों में शुद्धिकरण के लिए भेजा जाता है।"
+      "text_en": "Humans exhibit double circulation: Pulmonary circulation (heart to lungs and back) and Systemic circulation (heart to body tissues and back), preventing mixing of oxygenated and deoxygenated blood.",
+      "text_hi": "मानव में दोहरा परिसंचरण (Double Circulation) होता है: पल्मोनरी और सिस्टेमिक परिसंचरण, जिससे शुद्ध और अशुद्ध रक्त आपस में नहीं मिलते।",
+      "text_te": "మానవులలో ద్వంద్వ ప్రసరణ (Double Circulation) జరుగుతుంది: పుపుస ప్రసరణ మరియు దైహిక ప్రసరణ. ఇది ఆక్సిజన్ సహిత మరియు రహిత రక్తాలు కలవకుండా నిరోధిస్తుంది."
     }
   ]
 }

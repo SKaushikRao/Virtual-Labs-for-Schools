@@ -15,6 +15,7 @@ app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 export const VOICE_ID_MAP: Record<string, string> = {
   en: process.env.ELEVENLABS_VOICE_EN || '21m00Tcm4TlvDq8ikWAM', // Rachel
   hi: process.env.ELEVENLABS_VOICE_HI || 'onwK4e9ZLuTAKqWW03F9', // Multilingual Hindi Voice
+  te: process.env.ELEVENLABS_VOICE_TE || 'onwK4e9ZLuTAKqWW03F9', // Multilingual Telugu Voice
 };
 
 interface CorpusChunk {
@@ -22,7 +23,8 @@ interface CorpusChunk {
   step: number;
   type: string;
   text_en: string;
-  text_hi: string;
+  text_hi?: string;
+  text_te?: string;
 }
 
 interface CorpusDocument {
@@ -68,7 +70,7 @@ function tokenize(text: string): Set<string> {
   return new Set(
     text
       .toLowerCase()
-      .replace(/[^\w\s\u0900-\u097F]/g, ' ')
+      .replace(/[^\w\s\u0900-\u097F\u0C00-\u0C7F]/g, ' ')
       .split(/\s+/)
       .filter((w) => w.length > 1)
   );
@@ -83,27 +85,42 @@ function calculateSimilarity(tokens1: Set<string>, tokens2: Set<string>): number
   return intersection / Math.sqrt(tokens1.size * tokens2.size);
 }
 
-function detectIsHindi(question: string, langPref?: string): boolean {
-  if (langPref === 'hi') return true;
-  // Check for Devanagari characters
-  if (/[\u0900-\u097F]/.test(question)) return true;
-  
-  // Check for common Hinglish question tokens
+function detectLanguage(question: string, langPref?: string): 'en' | 'hi' | 'te' {
+  if (langPref === 'te') return 'te';
+  if (langPref === 'hi') return 'hi';
+
+  // Check Telugu Unicode (0C00-0C7F)
+  if (/[\u0C00-\u0C7F]/.test(question)) return 'te';
+
+  // Check Hindi Unicode (0900-097F)
+  if (/[\u0900-\u097F]/.test(question)) return 'hi';
+
+  // Check Telugu / Teluglish tokens
+  const teluglishTokens = [
+    'emi', 'ela', 'enduku', 'cheyali', 'cheyyali', 'enti', 'cheppu',
+    'jarugutundi', 'mundu', 'tarvata', 'kavali', 'emiti', 'chudali',
+    'veyaali', 'kalisindi', 'telusuko', 'namaskaram', 'babu', 'anna', 'edhi'
+  ];
+  const words = question.toLowerCase().split(/\s+/);
+  if (words.some((w) => teluglishTokens.includes(w))) return 'te';
+
+  // Check Hindi / Hinglish tokens
   const hinglishTokens = [
     'kya', 'kaise', 'kyu', 'kyun', 'karna', 'kare', 'karen', 'karein',
     'hoga', 'hota', 'hoti', 'hote', 'hai', 'hain', 'ho', 'tha', 'the',
     'batao', 'samjhao', 'namaste', 'aage', 'pehle', 'daale', 'daalna',
     'daalo', 'chahiye', 'nahi', 'nahin', 'madad', 'sahi', 'galat'
   ];
-  const words = question.toLowerCase().split(/\s+/);
-  return words.some((w) => hinglishTokens.includes(w));
+  if (words.some((w) => hinglishTokens.includes(w))) return 'hi';
+
+  return 'en';
 }
 
 function retrieveRelevantChunks(
   experimentId: string,
   currentStep: number,
   studentQuestion: string,
-  language: 'en' | 'hi'
+  language: 'en' | 'hi' | 'te'
 ): { chunks: CorpusChunk[]; hasDirectMatch: boolean } {
   const doc = corpusDatabase.get(experimentId);
   if (!doc || !doc.chunks || doc.chunks.length === 0) {
@@ -115,7 +132,7 @@ function retrieveRelevantChunks(
   const qTokens = tokenize(studentQuestion);
 
   const scored = doc.chunks.map((chunk) => {
-    const text = language === 'hi' ? chunk.text_hi : chunk.text_en;
+    const text = language === 'te' ? (chunk.text_te || chunk.text_en) : language === 'hi' ? (chunk.text_hi || chunk.text_en) : chunk.text_en;
     const cTokens = tokenize(text);
     let score = calculateSimilarity(qTokens, cTokens);
 
@@ -136,7 +153,7 @@ function retrieveRelevantChunks(
 }
 
 // Helper: Synthesize speech using ElevenLabs Multilingual model
-async function synthesizeElevenLabsAudio(text: string, language: 'en' | 'hi'): Promise<string | null> {
+async function synthesizeElevenLabsAudio(text: string, language: 'en' | 'hi' | 'te'): Promise<string | null> {
   const elevenKey = process.env.ELEVENLABS_API_KEY;
   if (!elevenKey || elevenKey === 'MY_ELEVENLABS_API_KEY') return null;
 
@@ -165,16 +182,15 @@ async function synthesizeElevenLabsAudio(text: string, language: 'en' | 'hi'): P
   return null;
 }
 
-// Groq Generation with Strict Language Routing
+// Groq Generation with Multilingual RAG & Strict Routing (English, Hindi, Telugu)
 async function generateMentorResponse(
   experimentId: string,
   currentStep: number,
-  languagePref: 'en' | 'hi',
+  languagePref: 'en' | 'hi' | 'te',
   studentQuestion: string,
   mistakeContext?: string | null
-): Promise<{ reply: string; detectedLanguage: 'en' | 'hi' }> {
-  const isHindi = detectIsHindi(studentQuestion, languagePref);
-  const language: 'en' | 'hi' = isHindi ? 'hi' : 'en';
+): Promise<{ reply: string; detectedLanguage: 'en' | 'hi' | 'te' }> {
+  const language = detectLanguage(studentQuestion, languagePref);
 
   const cacheKey = `${experimentId}:${currentStep}:${language}:${studentQuestion.trim().toLowerCase()}`;
   const cached = queryCache.get(cacheKey);
@@ -184,16 +200,18 @@ async function generateMentorResponse(
 
   const { chunks, hasDirectMatch } = retrieveRelevantChunks(experimentId, currentStep, studentQuestion, language);
   const contextText = chunks
-    .map((c) => `- ${language === 'hi' ? c.text_hi : c.text_en}`)
+    .map((c) => `- ${language === 'te' ? (c.text_te || c.text_en) : language === 'hi' ? (c.text_hi || c.text_en) : c.text_en}`)
     .join('\n');
 
   const apiKey = process.env.GROQ_API_KEY;
 
   if (!apiKey || apiKey === 'MY_GROQ_API_KEY' || apiKey.trim() === '') {
     if (chunks.length > 0) {
-      const best = language === 'hi' ? chunks[0].text_hi : chunks[0].text_en;
+      const best = language === 'te' ? (chunks[0].text_te || chunks[0].text_en) : language === 'hi' ? (chunks[0].text_hi || chunks[0].text_en) : chunks[0].text_en;
       const prefix =
-        language === 'hi'
+        language === 'te'
+          ? 'నమస్కారం! ల్యాబ్ గైడ్ ప్రకారం: '
+          : language === 'hi'
           ? 'अरे दोस्त! लैब गाइड के अनुसार: '
           : "Hey there! Here's a tip from the lab guide: ";
       const reply = `${prefix}${best}`;
@@ -201,9 +219,12 @@ async function generateMentorResponse(
       return { reply, detectedLanguage: language };
     }
     return {
-      reply: language === 'hi'
-        ? 'प्रयोग में ध्यान रखें और दिए गए निर्देशों का क्रम से पालन करें।'
-        : 'Keep following the step-by-step procedure on your screen. You are doing great!',
+      reply:
+        language === 'te'
+          ? 'ప్రయోగంలో సూచించిన విధంగా దశలను జాగ్రత్తగా అనుసరించండి.'
+          : language === 'hi'
+          ? 'प्रयोग में ध्यान रखें और दिए गए निर्देशों का क्रम से पालन करें।'
+          : 'Keep following the step-by-step procedure on your screen. You are doing great!',
       detectedLanguage: language,
     };
   }
@@ -212,8 +233,22 @@ async function generateMentorResponse(
 
   for (const model of candidateModels) {
     try {
-      const systemPrompt = isHindi
-        ? `You are Aarav, an encouraging, friendly senior-student science lab buddy assisting an Indian high school student in a virtual science laboratory.
+      let systemPrompt = '';
+      if (language === 'te') {
+        systemPrompt = `You are Aarav, an encouraging, friendly senior-student science lab buddy assisting a high school student in a virtual practical science lab.
+CRITICAL LANGUAGE REQUIREMENT:
+You MUST respond ENTIRELY in natural, fluent Telugu using the Telugu script (తెలుగు లిపి).
+Do NOT write your response in English or Hindi.
+You may include English scientific terms in brackets where helpful (e.g. తటస్థీకరణం (neutralization), ఆమ్లం (acid), బీకర్ (beaker)), but the sentences must be strictly in Telugu.
+Guidelines:
+1. Speak warmly and encouragingly as a senior lab mentor.
+2. Keep your answer strictly to 2 to 4 concise sentences.
+3. Current Experiment: ${experimentId}, Current Step: ${currentStep}.
+${mistakeContext ? `Recent Student Mis-step: ${mistakeContext}` : ''}
+
+${hasDirectMatch ? `NCERT Telugu Lab Facts:\n${contextText}` : 'Directly explain the student question accurately with scientific clarity.'}`;
+      } else if (language === 'hi') {
+        systemPrompt = `You are Aarav, an encouraging, friendly senior-student science lab buddy assisting a high school student in a virtual science laboratory.
 CRITICAL LANGUAGE REQUIREMENT:
 You MUST respond ENTIRELY in fluent Hindi using the Devanagari script (हिंदी लिपि).
 Do NOT write your answer in English.
@@ -224,8 +259,9 @@ Guidelines:
 3. Current Experiment: ${experimentId}, Current Step: ${currentStep}.
 ${mistakeContext ? `Recent Student Mis-step: ${mistakeContext}` : ''}
 
-${hasDirectMatch ? `NCERT Lab Facts:\n${contextText}` : 'Directly explain the student question accurately with scientific rigor.'}`
-        : `You are Aarav, an encouraging, friendly senior-student science lab buddy assisting a high school student in a virtual science lab.
+${hasDirectMatch ? `NCERT Lab Facts:\n${contextText}` : 'Directly explain the student question accurately with scientific rigor.'}`;
+      } else {
+        systemPrompt = `You are Aarav, an encouraging, friendly senior-student science lab buddy assisting a high school student in a virtual science lab.
 Guidelines:
 1. Speak warmly, clearly, and naturally in English.
 2. Keep your answer strictly to 2 to 4 concise, high-value sentences.
@@ -233,6 +269,7 @@ Guidelines:
 ${mistakeContext ? `Recent Student Mis-step: ${mistakeContext}` : ''}
 
 ${hasDirectMatch ? `Verified Lab Facts from NCERT Syllabus:\n${contextText}` : 'Instruction: Provide a helpful scientific explanation.'}`;
+      }
 
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -264,9 +301,16 @@ ${hasDirectMatch ? `Verified Lab Facts from NCERT Syllabus:\n${contextText}` : '
     }
   }
 
-  const fallbackChunk = chunks[0] ? (language === 'hi' ? chunks[0].text_hi : chunks[0].text_en) : 'Follow the step sequence on your screen.';
+  const fallbackChunk = chunks[0]
+    ? language === 'te'
+      ? (chunks[0].text_te || chunks[0].text_en)
+      : language === 'hi'
+      ? (chunks[0].text_hi || chunks[0].text_en)
+      : chunks[0].text_en
+    : 'Follow the step sequence on your screen.';
+
   return {
-    reply: `${language === 'hi' ? 'लैब गाइड संकेत:' : 'Lab Mentor hint:'} ${fallbackChunk}`,
+    reply: `${language === 'te' ? 'ల్యాబ్ గైడ్ సూచన:' : language === 'hi' ? 'लैब गाइड संकेत:' : 'Lab Mentor hint:'} ${fallbackChunk}`,
     detectedLanguage: language,
   };
 }
@@ -284,12 +328,12 @@ app.post('/api/mentor/ask', async (req: Request, res: Response) => {
     const { reply, detectedLanguage } = await generateMentorResponse(
       experimentId,
       Number(currentStep),
-      language === 'hi' ? 'hi' : 'en',
+      language === 'te' ? 'te' : language === 'hi' ? 'hi' : 'en',
       studentQuestion,
       mistakeContext
     );
 
-    // Synthesize ElevenLabs audio in the detected language (Hindi / English)
+    // Synthesize ElevenLabs audio in the detected language (Telugu / Hindi / English)
     const audioBase64 = await synthesizeElevenLabsAudio(reply, detectedLanguage);
 
     res.json({
@@ -311,7 +355,7 @@ app.post('/api/mentor/ask-voice', async (req: Request, res: Response) => {
     const { audioBase64, experimentId = 'titration-10', currentStep = 1, language = 'en', mistakeContext } = req.body;
     const elevenKey = process.env.ELEVENLABS_API_KEY;
 
-    let transcript = language === 'hi' ? 'प्रयोग का अगला चरण क्या है?' : 'What is the next step in this experiment?';
+    let transcript = language === 'te' ? 'తర్వాత దశలో ఏమి చేయాలి?' : language === 'hi' ? 'प्रयोग का अगला चरण क्या है?' : 'What is the next step in this experiment?';
 
     // 1. ElevenLabs STT
     if (elevenKey && elevenKey !== 'MY_ELEVENLABS_API_KEY' && audioBase64) {
@@ -341,12 +385,12 @@ app.post('/api/mentor/ask-voice', async (req: Request, res: Response) => {
     const { reply, detectedLanguage } = await generateMentorResponse(
       experimentId,
       Number(currentStep),
-      language === 'hi' ? 'hi' : 'en',
+      language === 'te' ? 'te' : language === 'hi' ? 'hi' : 'en',
       transcript,
       mistakeContext
     );
 
-    // 3. ElevenLabs TTS for high quality natural Hindi / English voice
+    // 3. ElevenLabs TTS for high quality natural Telugu / Hindi / English voice
     const audioBase64Response = await synthesizeElevenLabsAudio(reply, detectedLanguage);
 
     res.json({
@@ -365,18 +409,18 @@ app.post('/api/mentor/ask-voice', async (req: Request, res: Response) => {
 // Endpoint 3: On-Demand ElevenLabs TTS Generation
 app.post('/api/mentor/tts', async (req: Request, res: Response) => {
   try {
-    const { text, language = 'hi' } = req.body;
+    const { text, language = 'te' } = req.body;
     if (!text) {
       res.status(400).json({ error: 'text is required' });
       return;
     }
 
-    const isHindi = detectIsHindi(text, language);
-    const audioBase64 = await synthesizeElevenLabsAudio(text, isHindi ? 'hi' : 'en');
+    const detectedLanguage = detectLanguage(text, language);
+    const audioBase64 = await synthesizeElevenLabsAudio(text, detectedLanguage);
 
     res.json({
       audioBase64,
-      language: isHindi ? 'hi' : 'en',
+      language: detectedLanguage,
     });
   } catch (err: any) {
     console.error('Error in /api/mentor/tts:', err);
