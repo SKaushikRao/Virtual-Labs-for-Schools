@@ -13,6 +13,7 @@ import {
   Bot,
   User,
   AlertCircle,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
@@ -21,6 +22,7 @@ interface Message {
   sender: 'user' | 'mentor';
   text: string;
   audioBase64?: string;
+  language?: 'en' | 'hi';
   timestamp: string;
 }
 
@@ -43,12 +45,14 @@ export const AIMentorPanel: React.FC = () => {
         selectedLanguage === 'hi'
           ? 'नमस्ते! मैं आरव हूँ, आपका साइंस लैब बडी। कोई भी सवाल पूछें या किसी स्टेप में मदद चाहिए तो बेझिझक कहें!'
           : "Hey there! I'm Aarav, your senior lab buddy. Ask me anything about what's happening or if you get stuck!",
+      language: selectedLanguage,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -60,24 +64,67 @@ export const AIMentorPanel: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
-  const playVoiceResponse = (text: string, audioBase64?: string) => {
+  const playVoiceResponse = async (msg: Message) => {
     if (currentAudioElementRef.current) {
       currentAudioElementRef.current.pause();
       currentAudioElementRef.current = null;
     }
 
-    if (audioBase64) {
-      const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
-      currentAudioElementRef.current = audio;
-      setIsPlayingAudio(true);
-      audio.onended = () => setIsPlayingAudio(false);
-      audio.onerror = () => setIsPlayingAudio(false);
-      audio.play().catch(() => setIsPlayingAudio(false));
-    } else if ('speechSynthesis' in window) {
-      // Browser SpeechSynthesis Fallback
+    // 1. If audioBase64 already exists from ElevenLabs
+    if (msg.audioBase64) {
+      try {
+        const audio = new Audio(`data:audio/mp3;base64,${msg.audioBase64}`);
+        currentAudioElementRef.current = audio;
+        setIsPlayingAudio(true);
+        audio.onended = () => setIsPlayingAudio(false);
+        audio.onerror = () => setIsPlayingAudio(false);
+        await audio.play();
+        return;
+      } catch {
+        setIsPlayingAudio(false);
+      }
+    }
+
+    // 2. Fetch on-demand ElevenLabs TTS from backend
+    setLoadingAudioId(msg.id);
+    try {
+      const res = await fetch('/api/mentor/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: msg.text,
+          language: msg.language || selectedLanguage,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.audioBase64) {
+          // Cache audioBase64 on message
+          setMessages((prev) =>
+            prev.map((m) => (m.id === msg.id ? { ...m, audioBase64: data.audioBase64 } : m))
+          );
+          const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
+          currentAudioElementRef.current = audio;
+          setIsPlayingAudio(true);
+          audio.onended = () => setIsPlayingAudio(false);
+          audio.onerror = () => setIsPlayingAudio(false);
+          await audio.play();
+          setLoadingAudioId(null);
+          return;
+        }
+      }
+    } catch {
+      // Fall through to browser speech synthesis
+    } finally {
+      setLoadingAudioId(null);
+    }
+
+    // 3. Fallback: Browser SpeechSynthesis
+    if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = selectedLanguage === 'hi' ? 'hi-IN' : 'en-US';
+      const utterance = new SpeechSynthesisUtterance(msg.text);
+      utterance.lang = (msg.language || selectedLanguage) === 'hi' ? 'hi-IN' : 'en-US';
       utterance.rate = 1.0;
       utterance.onstart = () => setIsPlayingAudio(true);
       utterance.onend = () => setIsPlayingAudio(false);
@@ -122,12 +169,13 @@ export const AIMentorPanel: React.FC = () => {
         id: (Date.now() + 1).toString(),
         sender: 'mentor',
         text: mentorReply,
+        audioBase64: data.audioBase64,
+        language: data.language || selectedLanguage,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
 
       setMessages((prev) => [...prev, mentorMsg]);
     } catch {
-      // Offline fallback
       const fallbackReply =
         selectedLanguage === 'hi'
           ? 'लैब गाइड: अपनी स्क्रीन पर दिखाए गए स्टेप के अनुसार रसायन डालें और सावधानी बरतें।'
@@ -139,6 +187,7 @@ export const AIMentorPanel: React.FC = () => {
           id: (Date.now() + 1).toString(),
           sender: 'mentor',
           text: fallbackReply,
+          language: selectedLanguage,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
@@ -206,8 +255,17 @@ export const AIMentorPanel: React.FC = () => {
       if (!res.ok) throw new Error('Voice API failed');
       const data = await res.json();
 
-      const userText = data.transcript || 'Spoken Question';
-      const replyText = data.reply || 'Step assistance ready.';
+      const userText = data.transcript || (selectedLanguage === 'hi' ? 'बोला गया प्रश्न' : 'Spoken Question');
+      const replyText = data.reply || (selectedLanguage === 'hi' ? 'लैब सहायता तैयार है।' : 'Step assistance ready.');
+
+      const mentorMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        sender: 'mentor',
+        text: replyText,
+        audioBase64: data.audioBase64,
+        language: data.detectedLanguage || selectedLanguage,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
 
       setMessages((prev) => [
         ...prev,
@@ -217,18 +275,11 @@ export const AIMentorPanel: React.FC = () => {
           text: userText,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
-        {
-          id: (Date.now() + 1).toString(),
-          sender: 'mentor',
-          text: replyText,
-          audioBase64: data.audioBase64,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
+        mentorMsg,
       ]);
 
-      playVoiceResponse(replyText, data.audioBase64);
+      playVoiceResponse(mentorMsg);
     } catch {
-      // Fallback
       handleSend(selectedLanguage === 'hi' ? 'क्या करना है?' : 'What should I do next?');
     } finally {
       setIsLoading(false);
@@ -265,7 +316,7 @@ export const AIMentorPanel: React.FC = () => {
                 <button
                   onClick={() => setLanguage('en')}
                   className={cn(
-                    'px-2 py-0.5 text-[10px] font-mono rounded',
+                    'px-2 py-0.5 text-[10px] font-mono rounded cursor-pointer transition-all',
                     selectedLanguage === 'en' ? 'bg-purple-600 text-white font-bold' : 'text-white/60'
                   )}
                 >
@@ -274,7 +325,7 @@ export const AIMentorPanel: React.FC = () => {
                 <button
                   onClick={() => setLanguage('hi')}
                   className={cn(
-                    'px-2 py-0.5 text-[10px] font-mono rounded',
+                    'px-2 py-0.5 text-[10px] font-mono rounded cursor-pointer transition-all',
                     selectedLanguage === 'hi' ? 'bg-purple-600 text-white font-bold' : 'text-white/60'
                   )}
                 >
@@ -284,7 +335,7 @@ export const AIMentorPanel: React.FC = () => {
 
               <button
                 onClick={() => setMentorOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                className="p-1.5 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors cursor-pointer"
               >
                 <X size={18} />
               </button>
@@ -327,12 +378,17 @@ export const AIMentorPanel: React.FC = () => {
                     <span>{msg.timestamp}</span>
                     {msg.sender === 'mentor' && (
                       <button
-                        onClick={() => playVoiceResponse(msg.text, msg.audioBase64)}
-                        className="hover:text-cyan-300 transition-colors flex items-center gap-1 cursor-pointer"
-                        title="Play audio response"
+                        onClick={() => playVoiceResponse(msg)}
+                        disabled={loadingAudioId === msg.id}
+                        className="hover:text-cyan-300 transition-colors flex items-center gap-1 cursor-pointer font-mono font-medium"
+                        title="Play ElevenLabs spoken audio"
                       >
-                        <Volume2 size={11} />
-                        <span>Listen</span>
+                        {loadingAudioId === msg.id ? (
+                          <Loader2 size={11} className="animate-spin text-cyan-300" />
+                        ) : (
+                          <Volume2 size={11} />
+                        )}
+                        <span>{loadingAudioId === msg.id ? 'Loading...' : 'Listen 🔊'}</span>
                       </button>
                     )}
                   </div>
