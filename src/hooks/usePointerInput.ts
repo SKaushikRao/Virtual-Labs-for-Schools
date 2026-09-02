@@ -1,34 +1,45 @@
 import { useEffect, useRef } from 'react';
 
-export function usePointerInput(handCursorRef: React.RefObject<{ x: number, y: number, isPinching: boolean }>) {
-  const pointerRef = useRef({ x: 0.5, y: 0.5, isDown: false });
+export function usePointerInput(handCursorRef: React.RefObject<{ x: number; y: number; isPinching: boolean; lastSeen?: number }>) {
+  const pointerRef = useRef({ x: 0.5, y: 0.5, isDown: false, lastMouseActivity: Date.now() });
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      // Only use mouse if hand isn't active (we can guess if hand isn't active if hand wasn't updated recently, but for now just let mouse override if moved)
       pointerRef.current.x = e.clientX / window.innerWidth;
       pointerRef.current.y = e.clientY / window.innerHeight;
+      pointerRef.current.lastMouseActivity = Date.now();
     };
-    const handleMouseDown = () => pointerRef.current.isDown = true;
-    const handleMouseUp = () => pointerRef.current.isDown = false;
+    const handleMouseDown = (e: MouseEvent) => {
+      pointerRef.current.x = e.clientX / window.innerWidth;
+      pointerRef.current.y = e.clientY / window.innerHeight;
+      pointerRef.current.isDown = true;
+      pointerRef.current.lastMouseActivity = Date.now();
+    };
+    const handleMouseUp = () => {
+      pointerRef.current.isDown = false;
+      pointerRef.current.lastMouseActivity = Date.now();
+    };
     const handleTouchMove = (e: TouchEvent) => {
-      if(e.touches.length > 0) {
+      if (e.touches.length > 0) {
         pointerRef.current.x = e.touches[0].clientX / window.innerWidth;
         pointerRef.current.y = e.touches[0].clientY / window.innerHeight;
+        pointerRef.current.lastMouseActivity = Date.now();
       }
-    }
+    };
     const handleTouchStart = (e: TouchEvent) => {
       pointerRef.current.isDown = true;
       handleTouchMove(e);
-    }
-    const handleTouchEnd = () => pointerRef.current.isDown = false;
+    };
+    const handleTouchEnd = () => {
+      pointerRef.current.isDown = false;
+    };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('mouseup', handleMouseUp);
-    window.addEventListener('touchmove', handleTouchMove);
-    window.addEventListener('touchstart', handleTouchStart);
-    window.addEventListener('touchend', handleTouchEnd);
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    window.addEventListener('mousedown', handleMouseDown, { passive: true });
+    window.addEventListener('mouseup', handleMouseUp, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
 
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
@@ -41,14 +52,24 @@ export function usePointerInput(handCursorRef: React.RefObject<{ x: number, y: n
   }, []);
 
   const getPointer = () => {
-    // Combine mouse and hand. Hand takes priority if it's "pinching" or "active", but to be simple, if hand is present we use it.
-    // We'll just define that the 3D scene polls this `getPointer` every frame.
     const hand = handCursorRef.current;
-    if (hand && (hand.x !== 0 || hand.y !== 0)) {
-      // If hand is detected, use hand
-      return { x: hand.x, y: hand.y, active: hand.isPinching };
+    const now = performance.now();
+    
+    // Hand tracking active if valid coordinates and updated recently (< 200ms)
+    if (hand && hand.x >= 0 && hand.y >= 0 && hand.lastSeen && (now - hand.lastSeen < 200)) {
+      return { 
+        x: hand.x, 
+        y: hand.y, 
+        active: hand.isPinching || pointerRef.current.isDown 
+      };
     }
-    return { x: pointerRef.current.x, y: pointerRef.current.y, active: pointerRef.current.isDown };
+
+    // Default to mouse / touch coordinates
+    return { 
+      x: pointerRef.current.x, 
+      y: pointerRef.current.y, 
+      active: pointerRef.current.isDown 
+    };
   };
 
   return getPointer;

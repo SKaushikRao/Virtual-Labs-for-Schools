@@ -1,0 +1,20 @@
+{
+  "experiment": "refraction-slab",
+  "title": "Refraction of Light Through a Glass Slab",
+  "chunks": [
+    {
+      "id": "refr_step1_snell",
+      "step": 1,
+      "type": "concept",
+      "text_en": "When light travels from an optically rarer medium (air) to a denser medium (glass), it bends towards the normal following Snell's Law: sin(i) / sin(r) = μ.",
+      "text_hi": "जब प्रकाश विरल माध्यम (हवा) से सघन माध्यम (कांच) में प्रवेश करता है, तो यह स्नेल के नियम (sin i / sin r = μ) के अनुसार अभिलंब की ओर झुकता है।"
+    },
+    {
+      "id": "refr_step2_lateral",
+      "step": 2,
+      "type": "result",
+      "text_en": "The emergent ray is parallel to the incident ray but shifted sideways; this perpendicular distance is called lateral displacement.",
+      "text_hi": "निर्गत किरण आपतित किरण के समानांतर होती है लेकिन किनारे खिसकी होती है, जिसे पार्श्विक विस्थापन (lateral displacement) कहते हैं।"
+    }
+  ]
+}

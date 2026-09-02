@@ -1,0 +1,20 @@
+{
+  "experiment": "onion-peel",
+  "title": "Onion Peel Cell Observation Under Microscope",
+  "chunks": [
+    {
+      "id": "onion_step1_safranin",
+      "step": 1,
+      "type": "procedure",
+      "text_en": "Safranin stain is used to highlight plant cell nuclei and lignified cell walls in a bright pink-red tint.",
+      "text_hi": "सफ़्रानिन डाई का उपयोग पादप कोशिका के केंद्रक और कोशिका भित्ति को गुलाबी-लाल रंग में उभारने के लिए किया जाता है।"
+    },
+    {
+      "id": "onion_step2_structure",
+      "step": 2,
+      "type": "concept",
+      "text_en": "Onion epidermal cells are rectangular, tightly packed plant cells with prominent cell walls, large central vacuoles, and a distinct nucleus pushed to the periphery.",
+      "text_hi": "प्याज की झिल्ली की कोशिकाएं आयताकार होती हैं, जिनमें स्पष्ट कोशिका भित्ति, बड़ी रसधानी (vacuole) और केंद्रक होता है।"
+    }
+  ]
+}

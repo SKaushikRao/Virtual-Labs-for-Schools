@@ -1,0 +1,62 @@
+{
+  "experiment": "titration-10",
+  "title": "Acid-Base Neutralization Titration",
+  "chunks": [
+    {
+      "id": "titration_setup",
+      "step": 1,
+      "type": "setup",
+      "text_en": "Start by setting up a clean 250ml borosilicate glass beaker on the lab bench. The beaker acts as the titration vessel containing the standard analyte.",
+      "text_hi": "सबसे पहले लैब बेंच पर 250ml का साफ बोरोसिलिकेट बीकर रखें। यह बीकर अनुमापन (titration) के लिए प्राथमिक पात्र का काम करता है।"
+    },
+    {
+      "id": "titration_water_rinse",
+      "step": 2,
+      "type": "procedure",
+      "text_en": "Rinse the glassware with distilled water to remove mineral traces or chemical residue that could cause titration error or premature pH shifts.",
+      "text_hi": "बीकर को आसुत जल (Distilled water) से धोएं ताकि कोई पुरानी अशुद्धियां न रहें जो pH मान और रीडिंग को प्रभावित कर सकें।"
+    },
+    {
+      "id": "titration_naoh_base",
+      "step": 3,
+      "type": "concept",
+      "text_en": "Sodium hydroxide (NaOH) is a strong Arrhenius base that dissociates completely into Na+ and OH- ions in water, raising the initial pH to around 12-13.",
+      "text_hi": "सोडियम हाइड्रॉक्साइड (NaOH) एक प्रबल क्षार (base) है जो पानी में घुलकर Na+ और OH- आयन देता है, जिससे घोल का pH 12-13 तक पहुँच जाता है।"
+    },
+    {
+      "id": "titration_indicator_mechanism",
+      "step": 4,
+      "type": "concept",
+      "text_en": "Phenolphthalein is an organic weak acid indicator. In alkaline conditions (pH > 8.2), it loses protons to form a pink quinonoid structure.",
+      "text_hi": "फ़ेनोल्फ़थेलिन एक कार्बनिक सूचक है। क्षारीय माध्यम (pH > 8.2) में यह गुलाबी रंग में बदल जाता है, जबकि अम्लीय माध्यम में रंगहीन रहता है।"
+    },
+    {
+      "id": "titration_hcl_neutralization",
+      "step": 5,
+      "type": "reaction",
+      "text_en": "Adding Hydrochloric acid (HCl) provides H+ ions that react with OH- ions: HCl + NaOH -> NaCl + H2O. At equivalence, the solution neutralizes to pH 7.0 and turns colorless or faint persistent pink.",
+      "text_hi": "हाइड्रोक्लोरिक एसिड (HCl) मिलाने पर अभिक्रिया होती है: HCl + NaOH -> NaCl + H2O। उदासीनीकरण (Neutralization) पर pH 7.0 हो जाता है और गुलाबी रंग लुप्त हो जाता है।"
+    },
+    {
+      "id": "titration_endpoint_definition",
+      "step": 5,
+      "type": "theory",
+      "text_en": "The endpoint is the experimental moment when the indicator permanently changes color, indicating stoichiometric equivalence of moles of acid and base (N1V1 = N2V2).",
+      "text_hi": "एंडपॉइंट (Endpoint) वह बिंदु है जहां सूचक का रंग स्थाई रूप से बदल जाता है, जो यह दर्शाता है कि एसिड और बेस के मोल बराबर हो चुके हैं (N1V1 = N2V2)।"
+    },
+    {
+      "id": "titration_common_mistake_order",
+      "step": 0,
+      "type": "mistake",
+      "text_en": "Common mistake: Adding acid before adding the indicator. If you forget phenolphthalein, you won't be able to visually observe the neutralization transition.",
+      "text_hi": "आम गलती: इंडिकेटर डाले बिना एसिड मिलाना। यदि फ़ेनोल्फ़थेलिन नहीं डालेंगे तो रंग परिवर्तन का पता नहीं चलेगा।"
+    },
+    {
+      "id": "titration_safety",
+      "step": 0,
+      "type": "safety",
+      "text_en": "Always wear lab safety goggles and handle concentrated acids and bases with calibrated droppers to prevent chemical splashes.",
+      "text_hi": "हमेशा सुरक्षा चश्मा पहनें और एसिड-बेस को ड्रॉपर से ही सावधानीपूर्वक डालें।"
+    }
+  ]
+}

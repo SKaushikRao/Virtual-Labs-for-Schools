@@ -1,0 +1,48 @@
+{
+  "experiment": "flame-test",
+  "title": "Flame Test for Metal Ions",
+  "chunks": [
+    {
+      "id": "flame_burner_physics",
+      "step": 1,
+      "type": "setup",
+      "text_en": "Ignite the Bunsen burner and open the air hole to produce a non-luminous roaring blue flame. The blue flame has higher temperature (~1400°C) and minimal background color interference.",
+      "text_hi": "बुन्सेन बर्नर की एयर कॉलर खोलकर नीली गैर-चमकदार लौ उत्पन्न करें। यह लौ उच्च तापमान (~1400°C) देती है और रंग पहचान में बाधा नहीं डालती।"
+    },
+    {
+      "id": "flame_loop_cleaning",
+      "step": 2,
+      "type": "procedure",
+      "text_en": "Dip the platinum or nichrome wire loop in concentrated HCl and heat it in the flame until it imparts no color. HCl converts metal impurities into volatile metal chlorides.",
+      "text_hi": "प्लैटिनम के तार को सांद्र HCl में डुबोकर लौ में तब तक गर्म करें जब तक कि कोई रंग न आए। HCl अशुद्धियों को वाष्पशील क्लोराइड में बदल देता है।"
+    },
+    {
+      "id": "flame_sodium_spectra",
+      "step": 3,
+      "type": "concept",
+      "text_en": "Sodium (Na+) produces a brilliant golden-yellow flame due to strong atomic emission at 589 nm (D-lines) as 3p electrons de-excite to 3s orbitals.",
+      "text_hi": "सोडियम (Na+) तीव्र सुनहरी पीली लौ देता है, क्योंकि इसके इलेक्ट्रॉन 589 nm तरंगदैर्घ्य पर ऊर्जा का उत्सर्जन करते हैं।"
+    },
+    {
+      "id": "flame_copper_spectra",
+      "step": 4,
+      "type": "concept",
+      "text_en": "Copper (Cu2+) compounds emit in the blue-green spectrum (~510-530 nm), producing a vivid bluish-green flame characteristic of copper halides.",
+      "text_hi": "कॉपर (Cu2+) लवण नीला-हरा रंग (~510-530 nm) उत्सर्जित करते हैं, जिससे शानदार नीली-हरी लौ दिखाई देती है।"
+    },
+    {
+      "id": "flame_potassium_spectra",
+      "step": 5,
+      "type": "concept",
+      "text_en": "Potassium (K+) emits in the high-frequency violet spectrum (~766 nm and 404 nm), producing a pale lilac/violet flame best seen through cobalt blue glass.",
+      "text_hi": "पोटेशियम (K+) हल्की बैंगनी (lilac) लौ उत्पन्न करता है। इसे कोबाल्ट नीले कांच से देखने पर सोडियम की पीली चमक छन जाती है।"
+    },
+    {
+      "id": "flame_quantum_theory",
+      "step": 0,
+      "type": "theory",
+      "text_en": "Thermal energy from the flame excites valence electrons to higher energy levels. When electrons fall back to the ground state, photons of discrete wavelength (E = hc/λ) are emitted as visible light.",
+      "text_hi": "लौ की तापीय ऊर्जा इलेक्ट्रॉनों को उच्च ऊर्जा स्तर में भेजती है। जब इलेक्ट्रॉन वापस लौटते हैं, तो प्रकाश के रूप में फोटॉन (E = hc/λ) उत्सर्जित होते हैं।"
+    }
+  ]
+}

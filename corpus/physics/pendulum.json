@@ -1,0 +1,20 @@
+{
+  "experiment": "simple-pendulum",
+  "title": "Simple Pendulum (Time Period vs Length)",
+  "chunks": [
+    {
+      "id": "pendulum_step1_formula",
+      "step": 1,
+      "type": "concept",
+      "text_en": "The time period (T) of a simple pendulum is given by T = 2π√(L/g). Notice that period depends only on length (L) and gravity (g), not on the mass of the bob.",
+      "text_hi": "सरल लोलक का आवर्तकाल T = 2π√(L/g) होता है। यह केवल लंबाई (L) और गुरुत्वाकर्षण (g) पर निर्भर करता है, गोलक के द्रव्यमान पर नहीं।"
+    },
+    {
+      "id": "pendulum_step2_amplitude",
+      "step": 2,
+      "type": "procedure",
+      "text_en": "Displace the bob by a small angle (< 15 degrees) so that the motion remains simple harmonic.",
+      "text_hi": "गोलक को छोटे कोण (< 15 डिग्री) से विस्थापित करें ताकि गति सरल आवर्त (SHM) बनी रहे।"
+    }
+  ]
+}

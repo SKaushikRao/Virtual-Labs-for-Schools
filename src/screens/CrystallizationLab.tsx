@@ -15,24 +15,22 @@ import { AIMentorPanel } from '../components/mentor/AIMentorPanel';
 import { GestureTutorial } from '../components/GestureTutorial';
 
 const EXPERIMENT_STEPS = [
-  { id: 1, text: "Place the Beaker on the table.", expectedTool: "Beaker" },
-  { id: 2, text: "Rinse the Beaker with Distilled Water.", expectedTool: "Distilled Water" },
-  { id: 3, text: "Fill the Beaker with 50ml of NaOH (Base).", expectedTool: "NaOH" },
-  { id: 4, text: "Add 2 drops of Phenolphthalein Indicator.", expectedTool: "Indicator" },
-  { id: 5, text: "Perform Titration using HCl (Acid).", expectedTool: "HCl" }
+  { id: 1, text: "Place the Tripod Stand & Burner on the bench.", expectedTool: "Tripod Burner" },
+  { id: 2, text: "Add 50ml Distilled Water into the evaporating dish.", expectedTool: "Distilled Water" },
+  { id: 3, text: "Dissolve Copper Sulphate (CuSO4) powder until saturated.", expectedTool: "CuSO4 Powder" },
+  { id: 4, text: "Heat solution to crystallization point.", expectedTool: "Stirrer" },
+  { id: 5, text: "Allow undisturbed cooling to precipitate blue crystals.", expectedTool: "Cooling Dish" }
 ];
 
 const INVENTORY_ITEMS = [
-  { id: 'Beaker', type: 'Beaker', color: '#ffffff', icon: '🥛', name: 'Beaker 250ml', desc: 'Standard borosilicate reaction vessel' },
+  { id: 'Tripod Burner', type: 'Apparatus', color: '#666', icon: '🔥', name: 'Tripod & Burner', desc: 'Heating assembly with wire gauze' },
   { id: 'Distilled Water', type: 'Bottle', color: '#aaddff', icon: '💧', name: 'Dist. Water', desc: 'Pure water solvent' },
-  { id: 'NaOH', type: 'Bottle', color: '#4e44ff', icon: '🧪', name: 'NaOH (0.1M)', desc: 'Strong base alkali solution' },
-  { id: 'Indicator', type: 'Dropper', color: '#ffffff', icon: '💉', name: 'Phenolphthalein', desc: 'Turns pink in alkaline pH' },
-  { id: 'HCl', type: 'Tube', color: '#ff0000', icon: '🧪', name: 'HCl (0.1M)', desc: 'Hydrochloric acid titrant' },
-  { id: 'Salt', type: 'Powder', color: '#ffffff', icon: '🧂', name: 'NaCl Salt', desc: 'Crystalline sodium chloride' },
-  { id: 'Filter Paper', type: 'Paper', color: '#ffffff', icon: '📄', name: 'Filter Paper', desc: 'Cellulose filter paper' },
+  { id: 'CuSO4 Powder', type: 'Powder', color: '#2563eb', icon: '🧪', name: 'CuSO4 Powder', desc: 'Copper Sulphate pentahydrate powder' },
+  { id: 'Stirrer', type: 'Rod', color: '#ffffff', icon: '🪄', name: 'Glass Stirrer', desc: 'Used for continuous uniform dissolution' },
+  { id: 'Cooling Dish', type: 'Dish', color: '#60a5fa', icon: '❄️', name: 'China Dish', desc: 'Porcelain dish for slow undisturbed crystallization' },
 ];
 
-export function ChemistryLab() {
+export function CrystallizationLab() {
   const addScore = useAppStore(state => state.addScore);
   const score = useAppStore(state => state.score);
   const setCurrentStep = useAppStore(state => state.setCurrentStep);
@@ -40,23 +38,24 @@ export function ChemistryLab() {
   const setRecentMistake = useAppStore(state => state.setRecentMistake);
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const { isReady, cursorRef: handCursorRef } = useHandTracking(videoRef);
-  const getPointer = usePointerInput(handCursorRef);
+  const { isReady, cursorRef } = useHandTracking(videoRef);
+  const getPointer = usePointerInput(cursorRef);
 
   const [activeStep, setActiveStep] = useState(1);
   const [mistakeShaking, setMistakeShaking] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<typeof INVENTORY_ITEMS[0] | null>(null);
+  const [crystalsFormed, setCrystalsFormed] = useState(false);
+  const [solutionTemp, setSolutionTemp] = useState(25);
 
   const [logs, setLogs] = useState<{time: string, msg: string, type: 'info'|'warn'|'success'}[]>([
-    { time: new Date().toLocaleTimeString('en-US', { hour12: false }), msg: 'Chemistry Lab ready. Place beaker on table to start.', type: 'info' }
+    { time: new Date().toLocaleTimeString('en-US', { hour12: false }), msg: 'Crystallization Laboratory Initialized.', type: 'info' }
   ]);
 
-  const [spawnedItems, setSpawnedItems] = useState<{id: string, type: string, color: string, name: string, x: number, y: number, isDragging: boolean}[]>([]);
+  const [spawnedItems, setSpawnedItems] = useState<{id: string, type: string, color: string, name: string, x: number, y: number, isDragging: boolean}[]>([
+    { id: 'Tripod Burner', type: 'Apparatus', color: '#666', name: 'Tripod & Burner', x: 0, y: -0.6, isDragging: false }
+  ]);
   const spawnedItemsRef = useRef(spawnedItems);
   spawnedItemsRef.current = spawnedItems;
-
-  const [beakerColor, setBeakerColor] = useState('#ffffff');
-  const [neutralized, setNeutralized] = useState(false);
 
   useEffect(() => {
     setTotalSteps(EXPERIMENT_STEPS.length);
@@ -84,26 +83,18 @@ export function ChemistryLab() {
 
   const spawnItem = (item: {id: string, type: string, color: string, name: string}) => {
     if (spawnedItemsRef.current.some(i => i.id === item.id)) return;
-    
-    labAudio.playGrabSound();
 
-    if (item.id === 'Beaker') {
-      setSpawnedItems(prev => [...prev, { ...item, x: 0, y: -0.5, isDragging: false }]);
-      triggerSuccess("Beaker placed successfully on the table.", 20);
-      setActiveStep(2);
-      setCurrentStep(2);
-    } else {
-      const nonBeakerCount = spawnedItemsRef.current.filter(i => i.id !== 'Beaker').length;
-      const xPos = -4 + nonBeakerCount * 2;
-      setSpawnedItems(prev => [...prev, { ...item, x: xPos, y: -0.5, isDragging: false }]);
-      addLog(`Placed ${item.name} on table. Drag over beaker to react.`, "info");
-    }
+    labAudio.playGrabSound();
+    const count = spawnedItemsRef.current.filter(i => i.id !== 'Tripod Burner').length;
+    const xPos = -4 + (count % 4) * 2;
+    setSpawnedItems(prev => [...prev, { ...item, x: xPos, y: -0.6, isDragging: false }]);
+    addLog(`Placed ${item.name} on bench. Drag into the dish on the tripod!`, "info");
   };
 
   const spawnItemRef = useRef(spawnItem);
   spawnItemRef.current = spawnItem;
 
-  // Custom DOM Cursor & Hotbar Pinch Gesture detection
+  // Gesture hotbar click detection
   useEffect(() => {
     let animId: number;
     let wasActive = false;
@@ -131,13 +122,13 @@ export function ChemistryLab() {
   }, [getPointer]);
 
   return (
-    <div className="w-full h-screen relative bg-gradient-to-b from-[#05060f] via-[#080918] to-[#04050d] flex flex-col overflow-hidden cursor-none select-none">
+    <div className="w-full h-screen relative bg-gradient-to-b from-[#05060f] via-[#090a1a] to-[#04050d] flex flex-col overflow-hidden cursor-none select-none">
       <GestureCursor getPointer={getPointer} />
       <GestureTutorial />
       <AIMentorPanel />
 
       <LabTopBar
-        title="Acid-Base Neutralization Titration"
+        title="Preparation of Pure Copper Sulphate Crystals"
         subject="Chemistry"
         currentStep={activeStep}
         totalSteps={5}
@@ -145,24 +136,23 @@ export function ChemistryLab() {
       />
 
       <main className="flex-1 flex p-6 gap-6 relative z-10 min-h-0">
-        {/* Left Procedure Guide */}
         <div className="w-80 flex flex-col gap-4 shrink-0 overflow-y-auto hidden md:flex z-20 pointer-events-none">
           <motion.div 
             animate={mistakeShaking ? { x: [-8, 8, -6, 6, -3, 3, 0] } : {}}
             className={cn(
-              "bg-white/5 backdrop-blur-md rounded-2xl border p-5 flex flex-col shrink-0 pointer-events-auto shadow-2xl transition-all",
+              "bg-white/5 backdrop-blur-md rounded-2xl border p-5 flex flex-col shrink-0 pointer-events-auto shadow-2xl",
               mistakeShaking ? "border-red-500/80 bg-red-500/10" : "border-white/10"
             )}
           >
-            <span className="text-[10px] uppercase font-bold tracking-[0.2em] text-[#c084fc] mb-1 font-mono">Module 1</span>
-            <h2 className="text-xl font-bold leading-tight mb-2 text-white">Acid-Base Titration</h2>
+            <span className="text-[10px] uppercase font-bold tracking-[0.2em] text-[#c084fc] mb-1">Purification Process</span>
+            <h2 className="text-xl font-bold leading-tight mb-2 text-white">Crystallization</h2>
             <p className="text-xs text-white/50 leading-relaxed">
-              Click/pinch apparatus in the bottom hotbar to spawn them on table, then drag chemicals into the beaker.
+              Dissolve CuSO4, heat to saturation point, then allow slow undisturbed cooling to form pure triclinic crystals.
             </p>
           </motion.div>
 
           <div className="flex-1 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-5 overflow-hidden flex flex-col pointer-events-auto shadow-2xl">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-white/80 mb-4 flex items-center gap-2 shrink-0 font-mono">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-white/80 mb-4 font-mono">
               <span>📋</span> Procedure Steps
             </h3>
             <div className="space-y-4 overflow-y-auto flex-1 pr-2">
@@ -176,7 +166,7 @@ export function ChemistryLab() {
                         <svg className="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
                       </div>
                     ) : (
-                      <div className={cn("w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold font-mono", isCurrent ? "bg-[#4e44ff] text-white shadow-[0_0_15px_#4e44ff] border border-purple-400" : "bg-white/20 text-white")}>
+                      <div className={cn("w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold font-mono", isCurrent ? "bg-[#4e44ff] text-white shadow-[0_0_15px_#4e44ff]" : "bg-white/20 text-white")}>
                         {step.id}
                       </div>
                     )}
@@ -193,42 +183,42 @@ export function ChemistryLab() {
               <span className="text-2xl font-mono font-bold text-[#c084fc]">{score}</span>
             </div>
             <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-[#4e44ff] to-[#ff44ec] transition-all duration-700" style={{ width: `${Math.min(100, score)}%` }}></div>
+              <div className="h-full bg-gradient-to-r from-[#4e44ff] to-[#ff44ec] transition-all duration-700" style={{ width: `${Math.min(100, score)}%` }} />
             </div>
           </div>
         </div>
 
-        {/* Center 3D Canvas */}
+        {/* Center 3D Scene */}
         <div className="absolute inset-0 z-0 flex items-center justify-center bg-transparent pointer-events-none">
-          <Canvas camera={{ position: [0, 2, 7.5], fov: 45 }}>
+          <Canvas camera={{ position: [0, 2, 7.5], fov: 45 }} style={{ pointerEvents: 'none' }}>
             <ambientLight intensity={0.7} />
-            <directionalLight position={[5, 10, 5]} intensity={1.5} />
-            <pointLight position={[6, 8, 6]} intensity={1.5} color="#c084fc" />
+            <directionalLight position={[5, 10, 5]} intensity={1.2} />
+            <pointLight position={[6, 8, 6]} intensity={1.5} color="#60a5fa" />
             <pointLight position={[-6, 6, -3]} intensity={1.2} color="#4e44ff" />
 
-            <LabScene 
-               getPointer={getPointer} 
-               activeStep={activeStep} 
-               setActiveStep={setActiveStep} 
-               setCurrentStep={setCurrentStep}
-               triggerSuccess={triggerSuccess}
-               triggerMistake={triggerMistake}
-               beakerColor={beakerColor}
-               setBeakerColor={setBeakerColor}
-               neutralized={neutralized}
-               setNeutralized={setNeutralized}
-               spawnedItems={spawnedItems}
-               setSpawnedItems={setSpawnedItems}
+            <CrystallizationScene 
+              getPointer={getPointer}
+              activeStep={activeStep}
+              setActiveStep={setActiveStep}
+              setCurrentStep={setCurrentStep}
+              triggerSuccess={triggerSuccess}
+              triggerMistake={triggerMistake}
+              crystalsFormed={crystalsFormed}
+              setCrystalsFormed={setCrystalsFormed}
+              solutionTemp={solutionTemp}
+              setSolutionTemp={setSolutionTemp}
+              spawnedItems={spawnedItems}
+              setSpawnedItems={setSpawnedItems}
             />
             <ContactShadows position={[0, -2, 0]} opacity={0.4} scale={25} blur={2} />
           </Canvas>
 
           {/* Action indicator */}
           <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-6 py-2 rounded-full border border-white/20 flex items-center gap-3 pointer-events-none">
-             <div className="w-2.5 h-2.5 bg-[#c084fc] rounded-full shadow-[0_0_10px_#c084fc] animate-pulse"></div>
-             <span className="text-xs font-mono font-medium text-white/90">
-               {activeStep <= 5 ? `Active Step ${activeStep}: ${EXPERIMENT_STEPS[activeStep-1].text}` : "Experiment Successfully Neutralized!"}
-             </span>
+            <div className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-pulse shadow-[0_0_10px_#60a5fa]" />
+            <span className="text-xs font-mono font-medium text-white/90">
+              {activeStep <= 5 ? `Step ${activeStep}: ${EXPERIMENT_STEPS[activeStep-1].text}` : "Pure CuSO4 Crystals Synthesized!"}
+            </span>
           </div>
 
           <video ref={videoRef} playsInline muted className="absolute w-36 h-28 top-20 right-6 object-cover rounded-2xl border border-white/20 opacity-40 z-10 scale-x-[-1] pointer-events-none" />
@@ -237,23 +227,21 @@ export function ChemistryLab() {
         {/* Right Telemetry */}
         <div className="w-72 flex flex-col gap-4 shrink-0 hidden lg:flex ml-auto z-20 pointer-events-none">
           <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-5 shrink-0 pointer-events-auto shadow-2xl">
-             <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-3 font-mono">Live Telemetry</h3>
-             <div className="grid grid-cols-2 gap-3">
+             <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-3 font-mono">Thermodynamics</h3>
+             <div className="grid grid-cols-2 gap-3 mb-3">
                 <div className="bg-white/5 p-3 rounded-xl border border-white/5">
                    <div className="text-[9px] uppercase text-white/40 mb-1 font-mono">Temperature</div>
-                   <div className="text-lg font-mono font-bold text-[#ff44ec]">25.2°C</div>
+                   <div className="text-base font-mono font-bold text-amber-300">{solutionTemp}°C</div>
                 </div>
                 <div className="bg-white/5 p-3 rounded-xl border border-white/5">
-                   <div className="text-[9px] uppercase text-white/40 mb-1 font-mono">pH Value</div>
-                   <div className="text-lg font-mono font-bold text-[#00f2ff] transition-all">
-                     {activeStep < 4 ? '7.0' : activeStep === 4 ? '12.8' : '7.0'}
-                   </div>
+                   <div className="text-[9px] uppercase text-white/40 mb-1 font-mono">State</div>
+                   <div className="text-base font-mono font-bold text-cyan-300">{crystalsFormed ? 'Precipitated' : activeStep >= 4 ? 'Saturated' : 'Dilute'}</div>
                 </div>
              </div>
           </div>
 
           <div className="flex-1 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-5 overflow-hidden flex flex-col pointer-events-auto shadow-2xl">
-             <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-4 shrink-0 font-mono">Event Log</h3>
+             <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-4 shrink-0 font-mono">Thermal Log</h3>
              <div className="flex-1 space-y-3 font-mono text-[10px] text-white/40 overflow-y-auto pr-2">
                 {logs.map((log, i) => (
                   <div key={i} className="flex gap-2">
@@ -268,7 +256,7 @@ export function ChemistryLab() {
         </div>
       </main>
 
-      {/* Inventory Hotbar */}
+      {/* Hotbar */}
       <div className="absolute bottom-5 w-full flex flex-col items-center z-30 pointer-events-none">
         <AnimatePresence>
           {hoveredItem && (
@@ -303,35 +291,32 @@ export function ChemistryLab() {
   );
 }
 
-function LabScene({ getPointer, activeStep, setActiveStep, setCurrentStep, triggerSuccess, triggerMistake, beakerColor, setBeakerColor, neutralized, setNeutralized, spawnedItems, setSpawnedItems }: any) {
+function CrystallizationScene({ getPointer, activeStep, setActiveStep, setCurrentStep, triggerSuccess, triggerMistake, crystalsFormed, setCrystalsFormed, solutionTemp, setSolutionTemp, spawnedItems, setSpawnedItems }: any) {
   const { viewport } = useThree();
   const draggedItemIdRef = useRef<string | null>(null);
   const wasActive = useRef(false);
   const targetPosRef = useRef(new THREE.Vector3());
-  const [particles, setParticles] = useState<number[]>([]);
 
   useFrame(() => {
     const ptr = getPointer();
     const targetX = (ptr.x * 2 - 1) * (viewport.width / 2);
     const targetY = -(ptr.y * 2 - 1) * (viewport.height / 2);
-    targetPosRef.current.set(targetX, targetY, 2);
+    targetPosRef.current.lerp(new THREE.Vector3(targetX, targetY, 2), 0.4);
 
     const grabbed = ptr.active && !wasActive.current;
     const released = !ptr.active && wasActive.current;
 
-    // Pick up items
     if (grabbed) {
       let closest: any = null;
-      let minDist = 3.0; 
+      let minDist = 3.0;
       spawnedItems.forEach((item: any) => {
-        if (item.id === 'Beaker') return;
+        if (item.id === 'Tripod Burner') return;
         const dist = new THREE.Vector2(targetX, targetY).distanceTo(new THREE.Vector2(item.x, item.y));
         if (dist < minDist) {
           minDist = dist;
           closest = item;
         }
       });
-      
       if (closest) {
         draggedItemIdRef.current = closest.id;
         labAudio.playGrabSound();
@@ -339,53 +324,51 @@ function LabScene({ getPointer, activeStep, setActiveStep, setCurrentStep, trigg
       }
     }
 
-    // Dragging
     if (ptr.active && draggedItemIdRef.current) {
       setSpawnedItems((prev: any) => prev.map((i: any) => i.id === draggedItemIdRef.current ? { ...i, x: targetPosRef.current.x, y: targetPosRef.current.y } : i));
     }
 
-    // Drop & React
     if (released && draggedItemIdRef.current) {
       const itemId = draggedItemIdRef.current;
       setSpawnedItems((prev: any) => {
         const item = prev.find((i: any) => i.id === itemId);
         if (!item) return prev;
 
-        const beaker = prev.find((i: any) => i.id === 'Beaker');
-        if (beaker) {
-          const distToBeaker = new THREE.Vector2(item.x, item.y).distanceTo(new THREE.Vector2(beaker.x, beaker.y + 1.5));
-          if (distToBeaker < 3.2) {
+        const tripod = prev.find((i: any) => i.id === 'Tripod Burner');
+        if (tripod) {
+          const distToDish = new THREE.Vector2(item.x, item.y).distanceTo(new THREE.Vector2(tripod.x, tripod.y + 1.2));
+          if (distToDish < 3.2) {
             const expected = EXPERIMENT_STEPS[activeStep - 1];
             if (expected && expected.expectedTool === item.id) {
               labAudio.playPourEffect();
-              triggerSuccess(`Successfully added ${item.name}.`, 20);
               
-              if (item.id === 'NaOH') setBeakerColor('#4e44ff');
-              if (item.id === 'Indicator') setBeakerColor('#ff44ec');
-              if (item.id === 'HCl') {
-                setBeakerColor('#f5d0fe');
-                setNeutralized(true);
-                setParticles(Array.from({ length: 25 }).map(() => Math.random()));
+              if (item.id === 'Distilled Water') {
+                triggerSuccess("Added 50ml distilled water solvent.");
+              } else if (item.id === 'CuSO4 Powder') {
+                triggerSuccess("Added Copper Sulphate powder to form deep blue solution.");
+              } else if (item.id === 'Stirrer') {
+                setSolutionTemp(85);
+                triggerSuccess("Heated and stirred solution to saturation point (85°C).");
+              } else if (item.id === 'Cooling Dish') {
+                setSolutionTemp(22);
+                setCrystalsFormed(true);
+                triggerSuccess("Pure deep-blue CuSO4.5H2O crystals precipitated!", 30);
               }
-              
+
               const nextStep = activeStep + 1;
               setActiveStep(nextStep);
               setCurrentStep(nextStep);
-              
               draggedItemIdRef.current = null;
               return prev.filter((i: any) => i.id !== item.id);
             } else {
-              triggerMistake(`Wrong tool! For Step ${activeStep}, you need: ${expected?.expectedTool || 'None'}`);
+              triggerMistake(`Incorrect tool! For Step ${activeStep}, you need: ${expected?.expectedTool}`);
             }
           }
         }
-        
-        return prev.map((i: any) => i.id === item.id ? { ...i, isDragging: false, y: -0.5 } : i);
+        return prev.map((i: any) => i.id === item.id ? { ...i, isDragging: false, y: -0.6 } : i);
       });
-      
       draggedItemIdRef.current = null;
     }
-
     wasActive.current = ptr.active;
   });
 
@@ -397,169 +380,89 @@ function LabScene({ getPointer, activeStep, setActiveStep, setCurrentStep, trigg
       </mesh>
 
       {spawnedItems.map((item: any) => (
-        <SpawnedItemRenderer 
-          key={item.id}
-          item={item}
-          beakerColor={item.id === 'Beaker' ? beakerColor : undefined}
-          neutralized={item.id === 'Beaker' ? neutralized : undefined}
-          particles={item.id === 'Beaker' ? particles : undefined}
-        />
+        <group key={item.id} position={[item.x, item.y, item.isDragging ? 1.5 : 0]}>
+          {item.type === 'Apparatus' && (
+            <group position={[0, 0, 0]}>
+              {/* Tripod legs */}
+              <mesh position={[-0.8, 0, 0]} rotation={[0, 0, -0.2]}>
+                <cylinderGeometry args={[0.06, 0.06, 2, 16]} />
+                <meshStandardMaterial color="#444" metalness={0.8} />
+              </mesh>
+              <mesh position={[0.8, 0, 0]} rotation={[0, 0, 0.2]}>
+                <cylinderGeometry args={[0.06, 0.06, 2, 16]} />
+                <meshStandardMaterial color="#444" metalness={0.8} />
+              </mesh>
+              {/* Gauze Ring */}
+              <mesh position={[0, 1, 0]}>
+                <cylinderGeometry args={[1.2, 1.2, 0.1, 24]} />
+                <meshStandardMaterial color="#222" metalness={0.5} />
+              </mesh>
+              {/* Evaporating China Dish */}
+              <mesh position={[0, 1.2, 0]}>
+                <cylinderGeometry args={[0.9, 0.6, 0.4, 32]} />
+                <meshStandardMaterial color="#f8fafc" roughness={0.2} />
+              </mesh>
+              {/* Solution / Crystals */}
+              <mesh position={[0, 1.3, 0]}>
+                <cylinderGeometry args={[0.8, 0.5, 0.2, 32]} />
+                <meshStandardMaterial color="#2563eb" transparent opacity={0.85} />
+              </mesh>
+              {crystalsFormed && (
+                <group position={[0, 1.4, 0]}>
+                  <mesh position={[-0.3, 0.1, 0.2]} rotation={[0.4, 0.5, 0]}>
+                    <octahedronGeometry args={[0.2]} />
+                    <meshStandardMaterial color="#1d4ed8" roughness={0.1} metalness={0.3} />
+                  </mesh>
+                  <mesh position={[0.3, 0.1, -0.2]} rotation={[-0.2, 0.3, 0.5]}>
+                    <octahedronGeometry args={[0.25]} />
+                    <meshStandardMaterial color="#2563eb" roughness={0.1} metalness={0.3} />
+                  </mesh>
+                  <Text position={[0, 1, 0]} fontSize={0.3} color="#60a5fa" anchorX="center" outlineWidth={0.02}>
+                    Pure Crystals Formed!
+                  </Text>
+                </group>
+              )}
+            </group>
+          )}
+
+          {item.type === 'Bottle' && (
+            <group position={[0, 0.3, 0]}>
+              <mesh>
+                <cylinderGeometry args={[0.5, 0.5, 1.2, 24]} />
+                <meshStandardMaterial color="#aaddff" roughness={0.2} transparent opacity={0.8} />
+              </mesh>
+              <Text position={[0, 0.1, 0.52]} fontSize={0.16} color="#ffffff" anchorX="center">H2O</Text>
+            </group>
+          )}
+
+          {item.type === 'Powder' && (
+            <group position={[0, 0.3, 0]}>
+              <mesh>
+                <boxGeometry args={[0.8, 0.8, 0.8]} />
+                <meshStandardMaterial color="#2563eb" roughness={0.9} />
+              </mesh>
+              <Text position={[0, 0, 0.42]} fontSize={0.16} color="#ffffff" anchorX="center">CuSO4</Text>
+            </group>
+          )}
+
+          {item.type === 'Rod' && (
+            <mesh position={[0, 0.5, 0]} rotation={[0, 0, 0.2]}>
+              <cylinderGeometry args={[0.04, 0.04, 1.8, 16]} />
+              <meshStandardMaterial color="#ffffff" transparent opacity={0.6} />
+            </mesh>
+          )}
+
+          {item.type === 'Dish' && (
+            <group position={[0, 0.2, 0]}>
+              <mesh>
+                <cylinderGeometry args={[0.8, 0.6, 0.3, 24]} />
+                <meshStandardMaterial color="#e2e8f0" />
+              </mesh>
+              <Text position={[0, 0.4, 0]} fontSize={0.18} color="#ffffff" anchorX="center">Cooler</Text>
+            </group>
+          )}
+        </group>
       ))}
     </>
-  );
-}
-
-function SpawnedItemRenderer({ item, beakerColor, neutralized, particles }: any) {
-  const groupRef = useRef<THREE.Group>(null);
-  
-  useFrame(() => {
-    if (groupRef.current) {
-      const targetPos = new THREE.Vector3(item.x, item.y, item.isDragging ? 2 : 0);
-      groupRef.current.position.lerp(targetPos, 0.35);
-      
-      if (item.isDragging) {
-        groupRef.current.rotation.z = THREE.MathUtils.lerp(groupRef.current.rotation.z, -Math.PI / 8, 0.2);
-      } else {
-        groupRef.current.rotation.z = THREE.MathUtils.lerp(groupRef.current.rotation.z, 0, 0.2);
-      }
-    }
-  });
-
-  return (
-    <group ref={groupRef}>
-      {item.type === 'Beaker' && (
-        <Float speed={2} rotationIntensity={0.05} floatIntensity={0.1}>
-          <Beaker color={beakerColor!} />
-          {neutralized && (
-            <Text position={[0, 3.2, 0]} fontSize={0.55} color="#ff44ec" anchorX="center" anchorY="middle" outlineWidth={0.03} outlineColor="#000000">
-              Neutralized (pH 7.0)!
-            </Text>
-          )}
-          {particles && particles.map((p: number, i: number) => (
-            <Bubble key={i} delay={p} active={neutralized!} />
-          ))}
-        </Float>
-      )}
-      {item.type === 'Bottle' && <Bottle color={item.color} />}
-      {item.type === 'Dropper' && <Dropper color={item.color} />}
-      {item.type === 'Tube' && <TestTube color={item.color} />}
-      {item.type === 'Powder' && <PowderBox color={item.color} />}
-      {item.type === 'Paper' && <FilterPaper />}
-    </group>
-  );
-}
-
-function Beaker({ color }: { color: string }) {
-  return (
-    <group position={[0, -1, 0]}>
-      <mesh position={[0, 0.8, 0]}>
-        <cylinderGeometry args={[0.9, 0.9, 1.4, 32]} />
-        <meshStandardMaterial color={color} roughness={0.1} transparent opacity={0.85} />
-      </mesh>
-      <mesh position={[0, 1.25, 0]}>
-        <cylinderGeometry args={[1, 1, 2.5, 32]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.1} transparent opacity={0.3} side={THREE.DoubleSide} />
-      </mesh>
-    </group>
-  );
-}
-
-function Bottle({ color }: { color: string }) {
-  return (
-    <group position={[0, -1, 0]}>
-      <mesh position={[0, 0.5, 0]}>
-        <cylinderGeometry args={[0.6, 0.6, 1.2, 24]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.1} transparent opacity={0.4} />
-      </mesh>
-      <mesh position={[0, 0.4, 0]}>
-        <cylinderGeometry args={[0.55, 0.55, 1.0, 24]} />
-        <meshStandardMaterial color={color} roughness={0.2} transparent opacity={0.85} />
-      </mesh>
-      <mesh position={[0, 1.3, 0]}>
-        <cylinderGeometry args={[0.2, 0.6, 0.4, 24]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.1} transparent opacity={0.4} />
-      </mesh>
-      <mesh position={[0, 1.6, 0]}>
-        <cylinderGeometry args={[0.2, 0.2, 0.4, 24]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.1} transparent opacity={0.4} />
-      </mesh>
-      <mesh position={[0, 1.85, 0]}>
-        <cylinderGeometry args={[0.22, 0.22, 0.1, 16]} />
-        <meshStandardMaterial color="#222" roughness={0.8} />
-      </mesh>
-    </group>
-  );
-}
-
-function Dropper({ color }: { color: string }) {
-  return (
-    <group position={[0, -0.5, 0]}>
-       <mesh position={[0, 1.2, 0]}>
-          <sphereGeometry args={[0.3, 16, 16]} />
-          <meshStandardMaterial color="#ff44ec" roughness={0.8} />
-       </mesh>
-       <mesh position={[0, 0.5, 0]}>
-          <cylinderGeometry args={[0.05, 0.05, 1.4, 16]} />
-          <meshStandardMaterial color="#ffffff" transparent opacity={0.4} />
-       </mesh>
-    </group>
-  );
-}
-
-function TestTube({ color }: { color: string }) {
-  return (
-    <group position={[0, -1, 0]}>
-      <mesh position={[0, 0.2, 0]}>
-        <cylinderGeometry args={[0.25, 0.25, 1.5, 16]} />
-        <meshStandardMaterial color={color} transparent opacity={0.9} roughness={0.2} />
-      </mesh>
-      <mesh position={[0, 0.5, 0]}>
-        <cylinderGeometry args={[0.3, 0.3, 2.5, 16]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.1} transparent opacity={0.3} side={THREE.DoubleSide} />
-      </mesh>
-    </group>
-  );
-}
-
-function PowderBox({ color }: { color: string }) {
-  return (
-    <group position={[0, -0.5, 0]}>
-      <mesh position={[0, 0.5, 0]}>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.9} />
-      </mesh>
-      <Text position={[0, 0.5, 0.51]} fontSize={0.2} color="#000" anchorX="center" anchorY="middle">Salt</Text>
-    </group>
-  );
-}
-
-function FilterPaper() {
-  return (
-    <mesh position={[0, 0, 0]}>
-      <planeGeometry args={[1, 1]} />
-      <meshStandardMaterial color="#ffffff" roughness={1} side={THREE.DoubleSide} />
-    </mesh>
-  );
-}
-
-function Bubble({ delay, active }: { delay: number, active: boolean }) {
-  const ref = useRef<THREE.Mesh>(null);
-  const time = useRef(delay * Math.PI * 2);
-  
-  useFrame((_, delta) => {
-    if (!active || !ref.current) return;
-    time.current += delta * 2;
-    ref.current.position.y = (Math.sin(time.current) + 1) * 1.5;
-    ref.current.position.x = Math.sin(time.current * 2 + delay) * 0.5;
-    ref.current.scale.setScalar(Math.max(0, Math.sin(time.current * 0.5)));
-  });
-
-  if (!active) return null;
-
-  return (
-    <mesh ref={ref} position={[0, 0, 0]}>
-      <sphereGeometry args={[0.1, 8, 8]} />
-      <meshStandardMaterial color="#ffffff" transparent opacity={0.6} />
-    </mesh>
   );
 }

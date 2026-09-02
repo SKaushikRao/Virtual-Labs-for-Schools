@@ -1,0 +1,41 @@
+{
+  "experiment": "ohms-law",
+  "title": "Verification of Ohm's Law (V = IR)",
+  "chunks": [
+    {
+      "id": "ohms_law_statement",
+      "step": 1,
+      "type": "concept",
+      "text_en": "Ohm's Law states that electric current (I) flowing through a conductor is directly proportional to the potential difference (V) across its ends, provided temperature and other physical parameters remain constant (V = I * R).",
+      "text_hi": "ओम का नियम कहता है कि यदि भौतिक अवस्थाएँ (जैसे तापमान) स्थिर रहें, तो चालक से प्रवाहित धारा (I) उसके सिरों पर विभवांतर (V) के सीधे समानुपाती होती है (V = I * R)।"
+    },
+    {
+      "id": "ohms_circuit_connections",
+      "step": 2,
+      "type": "procedure",
+      "text_en": "The ammeter has very low resistance and must always be connected in series to measure total circuit current. The voltmeter has high internal resistance and is connected in parallel across the resistor.",
+      "text_hi": "एमीटर का प्रतिरोध बहुत कम होता है और इसे श्रेणीक्रम (series) में जोड़ा जाता है। वोल्टमीटर का प्रतिरोध उच्च होता है और इसे प्रतिरोधक के समानांतर (parallel) जोड़ा जाता है।"
+    },
+    {
+      "id": "ohms_rheostat_control",
+      "step": 3,
+      "type": "procedure",
+      "text_en": "A rheostat is a variable resistor used to smoothly change the circuit current without interrupting the supply, allowing students to record multiple (V, I) data points.",
+      "text_hi": "धारा नियंत्रक (Rheostat) एक परिवर्ती प्रतिरोधक है जो सर्किट की धारा को बदलकर विभिन्न (V, I) रीडिंग लेने में मदद करता है।"
+    },
+    {
+      "id": "ohms_graph_slope",
+      "step": 4,
+      "type": "theory",
+      "text_en": "Plotting Voltage (V) on the y-axis against Current (I) on the x-axis yields a straight line passing through the origin. The slope of this line represents the electrical resistance R = ΔV / ΔI.",
+      "text_hi": "V को y-अक्ष और I को x-अक्ष पर रखकर खींचा गया ग्राफ मूल बिंदु से गुजरने वाली सीधी रेखा होता है। इस ग्राफ का ढलान (Slope) प्रतिरोध R = ΔV / ΔI को दर्शाता है।"
+    },
+    {
+      "id": "ohms_limitations",
+      "step": 0,
+      "type": "limitations",
+      "text_en": "Ohm's Law holds for metallic conductors at constant temperature. It is not obeyed by non-ohmic devices like semiconductor diodes, LEDs, and electrolytes.",
+      "text_hi": "ओम का नियम केवल स्थिर तापमान पर धातु चालकों के लिए लागू होता है। डायोड, एलईडी और ट्रांजिस्टर जैसे गैर-ओमीय घटकों पर यह लागू नहीं होता।"
+    }
+  ]
+}

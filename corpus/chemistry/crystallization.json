@@ -1,0 +1,27 @@
+{
+  "experiment": "crystallization",
+  "title": "Crystallization of Copper Sulphate",
+  "chunks": [
+    {
+      "id": "cryst_step1_heat",
+      "step": 1,
+      "type": "procedure",
+      "text_en": "Heat copper sulphate solution gently on a wire gauze while stirring until it reaches saturation point.",
+      "text_hi": "कॉपर सल्फेट के घोल को कांच की छड़ से हिलाते हुए तब तक गर्म करें जब तक कि संतृप्त घोल न बन जाए।"
+    },
+    {
+      "id": "cryst_step2_cool",
+      "step": 2,
+      "type": "concept",
+      "text_en": "Slow, undisturbed cooling allows solute molecules to arrange in a regular geometric crystal lattice.",
+      "text_hi": "घोल को बिना हिलाए धीरे-धीरे ठंडा होने देने से शुद्ध नीले क्रिस्टल बनते हैं।"
+    },
+    {
+      "id": "cryst_step3_observe",
+      "step": 3,
+      "type": "result",
+      "text_en": "Deep blue, triclinic crystals of hydrated copper sulphate (CuSO4.5H2O) are formed in the china dish.",
+      "text_hi": "चाइना डिश में हाइड्रेटेड कॉपर सल्फेट (CuSO4.5H2O) के गहरे नीले क्रिस्टल प्राप्त होते हैं।"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "experiment": "stomata-obs",
+  "title": "Stomata and Leaf Structure Observation",
+  "chunks": [
+    {
+      "id": "stomata_step1_guard",
+      "step": 1,
+      "type": "concept",
+      "text_en": "Stomata are microscopic pores flanked by kidney-shaped guard cells that regulate transpiration and gas exchange (CO2/O2).",
+      "text_hi": "रंध्र (स्टोमेटा) सूक्ष्म छिद्र होते हैं जिनके दोनों ओर वृक्काकार द्वार कोशिकाएं (guard cells) होती हैं जो वाष्पोत्सर्जन को नियंत्रित करती हैं।"
+    },
+    {
+      "id": "stomata_step2_opening",
+      "step": 2,
+      "type": "concept",
+      "text_en": "When guard cells absorb water and become turgid, the stomatal pore opens. When they lose water and become flaccid, the pore closes.",
+      "text_hi": "जब द्वार कोशिकाएं जल अवशोषित करके स्फीत (turgid) हो जाती हैं, तो रंध्र खुल जाता है। जल की हानि पर यह बंद हो जाता है।"
+    }
+  ]
+}

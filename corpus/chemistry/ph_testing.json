@@ -1,0 +1,27 @@
+{
+  "experiment": "ph-testing",
+  "title": "pH Testing of Common Substances",
+  "chunks": [
+    {
+      "id": "ph_step1_setup",
+      "step": 1,
+      "type": "concept",
+      "text_en": "Universal indicator is a mixture of indicators that shows a smooth gradient of color from pH 0 (strong acid, red) to pH 14 (strong base, violet).",
+      "text_hi": "यूनिवर्सल इंडिकेटर कई सूचकों का मिश्रण है जो pH 0 (प्रबल अम्ल, लाल) से pH 14 (प्रबल क्षार, बैंगनी) तक रंग दिखाता है।"
+    },
+    {
+      "id": "ph_step2_lemon",
+      "step": 2,
+      "type": "result",
+      "text_en": "Lemon juice contains citric acid (pH ~ 2.2) which turns the indicator strip red/orange.",
+      "text_hi": "नींबू के रस में साइट्रिक एसिड (pH ~ 2.2) होता है जो इंडिकेटर को लाल/नारंगी कर देता है।"
+    },
+    {
+      "id": "ph_step3_soap",
+      "step": 3,
+      "type": "result",
+      "text_en": "Soap solution is basic (pH ~ 9.0) and turns the universal indicator bluish-purple.",
+      "text_hi": "साबुन का घोल क्षारीय (pH ~ 9.0) होता है और इंडिकेटर को नीला-बैंगनी बना देता है।"
+    }
+  ]
+}

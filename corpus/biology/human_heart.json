@@ -1,0 +1,27 @@
+{
+  "experiment": "human-heart",
+  "title": "Human Heart & Circulation Interactive",
+  "chunks": [
+    {
+      "id": "heart_step1_chambers",
+      "step": 1,
+      "type": "concept",
+      "text_en": "The human heart has 4 muscular chambers: two upper atria for receiving blood and two lower muscular ventricles for pumping blood.",
+      "text_hi": "मानव हृदय में 4 कक्ष होते हैं: रक्त प्राप्त करने के लिए दो अलिंद (atria) और रक्त पंप करने के लिए दो निलय (ventricles)।"
+    },
+    {
+      "id": "heart_step2_oxygenated",
+      "step": 2,
+      "type": "concept",
+      "text_en": "Oxygenated blood flows from the lungs into the left atrium via pulmonary veins, then into the left ventricle, and is pumped throughout the body by the aorta.",
+      "text_hi": "ऑक्सीजन युक्त शुद्ध रक्त फेफड़ों से फुफ्फुस शिरा द्वारा बाएं अलिंद में आता है, फिर बाएं निलय से महाधमनी (aorta) द्वारा शरीर में जाता है।"
+    },
+    {
+      "id": "heart_step3_deoxygenated",
+      "step": 3,
+      "type": "concept",
+      "text_en": "Deoxygenated blood returns from body tissues via the vena cava into the right atrium, moving to the right ventricle which pumps it to the lungs for re-oxygenation.",
+      "text_hi": "अशुद्ध रक्त महाशिरा (vena cava) द्वारा दाएं अलिंद में आता है और दाएं निलय से फेफड़ों में शुद्धिकरण के लिए भेजा जाता है।"
+    }
+  ]
+}
