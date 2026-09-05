@@ -39,6 +39,7 @@ export function HumanHeartLab() {
   const [showLabels, setShowLabels] = useState(true);
   const [activeGesture, setActiveGesture] = useState<'none' | 'rotate' | 'zoom'>('none');
   const [resetCounter, setResetCounter] = useState(0);
+  const [canvasKey, setCanvasKey] = useState(0);
 
   useEffect(() => {
     setExperiment('human-heart');
@@ -145,8 +146,30 @@ export function HumanHeartLab() {
         </div>
 
         {/* Center 3D Heart Canvas */}
-        <div className="absolute inset-0 z-0 flex items-center justify-center bg-transparent pointer-events-none">
-          <Canvas camera={{ position: [0, 0, 5.5], fov: 45 }}>
+        <div className="absolute inset-0 z-0 flex items-center justify-center bg-[#05060f] pointer-events-none">
+          <Canvas
+            key={canvasKey}
+            camera={{ position: [0, 0, 5.5], fov: 45 }}
+            gl={{
+              powerPreference: 'high-performance',
+              antialias: true,
+              failIfMajorPerformanceCaveat: false,
+              alpha: false,
+              preserveDrawingBuffer: false,
+            }}
+            onCreated={({ gl, scene }) => {
+              scene.background = new THREE.Color('#05060f');
+              const domEl = gl.domElement;
+              domEl.style.backgroundColor = '#05060f';
+              domEl.addEventListener('webglcontextlost', (e) => {
+                e.preventDefault();
+                console.warn('WebGL Context Lost. Remounting canvas to auto-recover...');
+                setTimeout(() => setCanvasKey(k => k + 1), 60);
+              }, false);
+            }}
+            style={{ background: '#05060f', width: '100%', height: '100%', pointerEvents: 'none' }}
+          >
+            <color attach="background" args={["#05060f"]} />
             <ambientLight intensity={0.9} />
             <directionalLight position={[5, 10, 5]} intensity={1.5} />
             <pointLight position={[6, 8, 6]} intensity={2.0} color="#f43f5e" />

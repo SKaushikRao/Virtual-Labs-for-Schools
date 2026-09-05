@@ -21,6 +21,33 @@ export interface HandData {
 
 const PINCH_ENGAGE_THRESHOLD = 0.045;
 const PINCH_RELEASE_THRESHOLD = 0.075;
+const INFERENCE_INTERVAL_MS = 33; // 30 FPS inference to prevent GPU/WebGL congestion
+
+// Singleton cache for MediaPipe HandLandmarker to avoid WebGL / WASM resource thrashing
+let sharedHandLandmarkerPromise: Promise<HandLandmarker> | null = null;
+
+async function getSharedHandLandmarker(): Promise<HandLandmarker> {
+  if (!sharedHandLandmarkerPromise) {
+    sharedHandLandmarkerPromise = (async () => {
+      const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+      );
+      
+      return await HandLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+          delegate: "CPU"
+        },
+        runningMode: "VIDEO",
+        numHands: 2,
+        minHandDetectionConfidence: 0.5,
+        minHandPresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+    })();
+  }
+  return sharedHandLandmarkerPromise;
+}
 
 export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | null>) {
   const [isReady, setIsReady] = useState(false);
@@ -35,30 +62,15 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
     lastSeen: 0,
   });
   const handsRef = useRef<HandData[]>([]);
+  const lastInferenceTime = useRef<number>(0);
 
   useEffect(() => {
     let active = true;
 
     async function initMediaPipe() {
       try {
-        const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
-        );
-        
+        const handLandmarker = await getSharedHandLandmarker();
         if (!active) return;
-  
-        const handLandmarker = await HandLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-            delegate: "GPU"
-          },
-          runningMode: "VIDEO",
-          numHands: 2,
-          minHandDetectionConfidence: 0.5,
-          minHandPresenceConfidence: 0.5,
-          minTrackingConfidence: 0.5
-        });
-
         handLandmarkerRef.current = handLandmarker;
         setIsReady(true);
       } catch (err) {
@@ -70,9 +82,7 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
 
     return () => {
       active = false;
-      if (handLandmarkerRef.current) {
-        handLandmarkerRef.current.close();
-      }
+      handLandmarkerRef.current = null;
     };
   }, []);
 
@@ -81,13 +91,14 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
 
     let stream: MediaStream | null = null;
     let animationFrameId: number;
+    let isRunning = true;
 
     async function setupCamera() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
         });
-        if (videoRef.current) {
+        if (videoRef.current && isRunning) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
           detectFrame();
@@ -100,84 +111,90 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
     setupCamera();
 
     function detectFrame() {
-      if (!videoRef.current || !handLandmarkerRef.current) return;
+      if (!isRunning || !videoRef.current || !handLandmarkerRef.current) return;
 
       const now = performance.now();
-      if (videoRef.current.readyState >= 2) {
-        try {
-          const results = handLandmarkerRef.current.detectForVideo(videoRef.current, now);
-          
-          if (results.landmarks && results.landmarks.length > 0) {
-            const detectedHands: HandData[] = [];
 
-            for (let i = 0; i < results.landmarks.length; i++) {
-              const rawLandmarks = results.landmarks[i];
-              // Map landmarks to screen space (mirror x-axis)
-              const mapped = rawLandmarks.map((lm) => ({
-                x: 1 - lm.x,
-                y: lm.y,
-                z: lm.z || 0,
-              }));
+      // Throttle heavy neural inference to ~30 FPS to avoid WebGL / GPU frame queue stalls
+      if (now - lastInferenceTime.current >= INFERENCE_INTERVAL_MS) {
+        lastInferenceTime.current = now;
 
-              const indexTip = mapped[8];
-              const thumbTip = mapped[4];
-              const middleMcp = mapped[9]; // stable hand center
+        if (videoRef.current.readyState >= 2) {
+          try {
+            const results = handLandmarkerRef.current.detectForVideo(videoRef.current, now);
+            
+            if (results && results.landmarks && results.landmarks.length > 0) {
+              const detectedHands: HandData[] = [];
 
-              const dx = indexTip.x - thumbTip.x;
-              const dy = indexTip.y - thumbTip.y;
-              const dz = indexTip.z - thumbTip.z;
-              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              for (let i = 0; i < results.landmarks.length; i++) {
+                const rawLandmarks = results.landmarks[i];
+                const mapped = rawLandmarks.map((lm) => ({
+                  x: 1 - lm.x,
+                  y: lm.y,
+                  z: lm.z || 0,
+                }));
 
-              const prevHand = handsRef.current[i];
-              const isPinching = prevHand && prevHand.isPinching
-                ? dist < PINCH_RELEASE_THRESHOLD
-                : dist < PINCH_ENGAGE_THRESHOLD;
+                const indexTip = mapped[8];
+                const thumbTip = mapped[4];
+                const middleMcp = mapped[9];
 
-              let handedness: 'Left' | 'Right' = 'Right';
-              if (results.handedness && results.handedness[i] && results.handedness[i][0]) {
-                const catName = results.handedness[i][0].categoryName || results.handedness[i][0].displayName;
-                // Note: MediaPipe mirrors input, so Left is displayed on user's Right side
-                handedness = catName === 'Left' ? 'Left' : 'Right';
+                const dx = indexTip.x - thumbTip.x;
+                const dy = indexTip.y - thumbTip.y;
+                const dz = indexTip.z - thumbTip.z;
+                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+                const prevHand = handsRef.current[i];
+                const isPinching = prevHand && prevHand.isPinching
+                  ? dist < PINCH_RELEASE_THRESHOLD
+                  : dist < PINCH_ENGAGE_THRESHOLD;
+
+                let handedness: 'Left' | 'Right' = 'Right';
+                if (results.handedness && results.handedness[i] && results.handedness[i][0]) {
+                  const catName = results.handedness[i][0].categoryName || results.handedness[i][0].displayName;
+                  handedness = catName === 'Left' ? 'Left' : 'Right';
+                }
+
+                detectedHands.push({
+                  landmarks: mapped,
+                  handedness,
+                  isPinching,
+                  pinchDistance: dist,
+                  center: middleMcp || mapped[0],
+                });
               }
 
-              detectedHands.push({
-                landmarks: mapped,
-                handedness,
-                isPinching,
-                pinchDistance: dist,
-                center: middleMcp || mapped[0],
-              });
+              handsRef.current = detectedHands;
+
+              const primary = detectedHands[0];
+              const pIndex = primary.landmarks[8];
+              handStateRef.current.x = pIndex.x;
+              handStateRef.current.y = pIndex.y;
+              handStateRef.current.z = pIndex.z;
+              handStateRef.current.pinchDistance = primary.pinchDistance;
+              handStateRef.current.isPinching = primary.isPinching;
+              handStateRef.current.confidence = 1;
+              handStateRef.current.lastSeen = now;
+            } else {
+              handsRef.current = [];
+              handStateRef.current.x = -1;
+              handStateRef.current.y = -1;
+              handStateRef.current.isPinching = false;
+              handStateRef.current.pinchDistance = 1;
+              handStateRef.current.confidence = 0;
             }
-
-            handsRef.current = detectedHands;
-
-            // Maintain primary hand state for single-hand labs
-            const primary = detectedHands[0];
-            const pIndex = primary.landmarks[8];
-            handStateRef.current.x = pIndex.x;
-            handStateRef.current.y = pIndex.y;
-            handStateRef.current.z = pIndex.z;
-            handStateRef.current.pinchDistance = primary.pinchDistance;
-            handStateRef.current.isPinching = primary.isPinching;
-            handStateRef.current.confidence = 1;
-            handStateRef.current.lastSeen = now;
-          } else {
-            handsRef.current = [];
-            handStateRef.current.x = -1;
-            handStateRef.current.y = -1;
-            handStateRef.current.isPinching = false;
-            handStateRef.current.pinchDistance = 1;
-            handStateRef.current.confidence = 0;
+          } catch {
+            // Gracefully ignore frame drop
           }
-        } catch {
-          // Ignore transient frame skips
         }
       }
 
-      animationFrameId = requestAnimationFrame(detectFrame);
+      if (isRunning) {
+        animationFrameId = requestAnimationFrame(detectFrame);
+      }
     }
 
     return () => {
+      isRunning = false;
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
@@ -187,5 +204,3 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
 
   return { isReady, handStateRef, cursorRef: handStateRef, handsRef };
 }
-
-

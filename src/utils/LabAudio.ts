@@ -192,6 +192,37 @@ class LabAudioManager {
       // Ignore
     }
   }
+
+  /**
+   * Fluid swirl / test-tube shake rattle sound effect
+   */
+  playRattleSound() {
+    try {
+      const ctx = this.getContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+
+      for (let i = 0; i < 3; i++) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(300 + Math.random() * 200, now + i * 0.04);
+        osc.frequency.exponentialRampToValueAtTime(150, now + i * 0.04 + 0.05);
+
+        gain.gain.setValueAtTime(0.04, now + i * 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.04 + 0.05);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now + i * 0.04);
+        osc.stop(now + i * 0.04 + 0.06);
+      }
+    } catch {
+      // Ignore
+    }
+  }
 }
 
 export const labAudio = new LabAudioManager();

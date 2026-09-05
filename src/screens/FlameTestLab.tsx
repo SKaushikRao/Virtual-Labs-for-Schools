@@ -42,6 +42,7 @@ export function FlameTestLab() {
   const getPointer = usePointerInput(cursorRef);
 
   const [activeStep, setActiveStep] = useState(1);
+  const [canvasKey, setCanvasKey] = useState(0);
   const [mistakeShaking, setMistakeShaking] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<typeof INVENTORY_ITEMS[0] | null>(null);
   const [flameColor, setFlameColor] = useState<string>('#0099ff');
@@ -190,8 +191,30 @@ export function FlameTestLab() {
         </div>
 
         {/* Center 3D Scene */}
-        <div className="absolute inset-0 z-0 flex items-center justify-center bg-transparent pointer-events-none">
-          <Canvas camera={{ position: [0, 2, 7.5], fov: 45 }} style={{ pointerEvents: 'none' }}>
+        <div className="absolute inset-0 z-0 flex items-center justify-center bg-[#05060f] pointer-events-none">
+          <Canvas
+            key={canvasKey}
+            camera={{ position: [0, 2, 7.5], fov: 45 }}
+            gl={{
+              powerPreference: 'high-performance',
+              antialias: true,
+              failIfMajorPerformanceCaveat: false,
+              alpha: false,
+              preserveDrawingBuffer: false,
+            }}
+            onCreated={({ gl, scene }) => {
+              scene.background = new THREE.Color('#05060f');
+              const domEl = gl.domElement;
+              domEl.style.backgroundColor = '#05060f';
+              domEl.addEventListener('webglcontextlost', (e) => {
+                e.preventDefault();
+                console.warn('WebGL Context Lost. Remounting canvas to auto-recover...');
+                setTimeout(() => setCanvasKey(k => k + 1), 60);
+              }, false);
+            }}
+            style={{ background: '#05060f', width: '100%', height: '100%', pointerEvents: 'none' }}
+          >
+            <color attach="background" args={["#05060f"]} />
             <ambientLight intensity={0.7} />
             <directionalLight position={[5, 10, 5]} intensity={1.2} />
             <pointLight position={[6, 8, 6]} intensity={1.5} color={flameColor} />

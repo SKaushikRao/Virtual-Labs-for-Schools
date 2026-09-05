@@ -13,7 +13,12 @@ import { LabTopBar } from '../components/ui/LabTopBar';
 import { GestureCursor } from '../components/ui/GestureCursor';
 import { AIMentorPanel } from '../components/mentor/AIMentorPanel';
 import { GestureTutorial } from '../components/GestureTutorial';
-import { PourStreamMesh, LiquidMesh, calculateFlowRate, blendLiquidColors } from '../components/fluids/FluidSystem';
+import {
+  LiquidFill,
+  PourStream,
+  calculateFlowRate,
+  blendAndSetColor,
+} from '../components/fluids/FluidSystem';
 
 const EXPERIMENT_STEPS = [
   { id: 1, text: "Place the Tripod Stand & Burner on the bench.", expectedTool: "Tripod Burner" },
@@ -43,17 +48,17 @@ export function CrystallizationLab() {
   const getPointer = usePointerInput(cursorRef);
 
   const [activeStep, setActiveStep] = useState(1);
+  const [canvasKey, setCanvasKey] = useState(0);
   const [mistakeShaking, setMistakeShaking] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<typeof INVENTORY_ITEMS[0] | null>(null);
   const [crystalsFormed, setCrystalsFormed] = useState(false);
   const [crystalScale, setCrystalScale] = useState(0);
-  const [solutionTemp, setSolutionTemp] = useState(25);
-  
-  // Continuous Fluid in Evaporating Dish
-  const [dishVolume, setDishVolume] = useState(0); // 0 to 80ml
-  const [dishColor, setDishColor] = useState('#aaddff');
-  const [isPouringNow, setIsPouringNow] = useState(false);
+
+  // Throttled UI Telemetry
+  const [displayTemp, setDisplayTemp] = useState(25);
+  const [displayVolume, setDisplayVolume] = useState(0);
   const [targetPrompt, setTargetPrompt] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState({ tilt: 0, pouring: false });
 
   const [logs, setLogs] = useState<{time: string, msg: string, type: 'info'|'warn'|'success'}[]>([
     { time: new Date().toLocaleTimeString('en-US', { hour12: false }), msg: 'Crystallization Laboratory Initialized.', type: 'info' }
@@ -197,8 +202,30 @@ export function CrystallizationLab() {
         </div>
 
         {/* Center 3D Scene */}
-        <div className="absolute inset-0 z-0 flex items-center justify-center bg-transparent pointer-events-none">
-          <Canvas camera={{ position: [0, 2, 7.5], fov: 45 }} style={{ pointerEvents: 'none' }}>
+        <div className="absolute inset-0 z-0 flex items-center justify-center bg-[#05060f] pointer-events-none">
+          <Canvas
+            key={canvasKey}
+            camera={{ position: [0, 2, 7.5], fov: 45 }}
+            gl={{
+              powerPreference: 'high-performance',
+              antialias: true,
+              failIfMajorPerformanceCaveat: false,
+              alpha: false,
+              preserveDrawingBuffer: false,
+            }}
+            onCreated={({ gl, scene }) => {
+              scene.background = new THREE.Color('#05060f');
+              const domEl = gl.domElement;
+              domEl.style.backgroundColor = '#05060f';
+              domEl.addEventListener('webglcontextlost', (e) => {
+                e.preventDefault();
+                console.warn('WebGL Context Lost. Remounting canvas to auto-recover...');
+                setTimeout(() => setCanvasKey(k => k + 1), 60);
+              }, false);
+            }}
+            style={{ background: '#05060f', width: '100%', height: '100%', pointerEvents: 'none' }}
+          >
+            <color attach="background" args={["#05060f"]} />
             <ambientLight intensity={0.7} />
             <directionalLight position={[5, 10, 5]} intensity={1.2} />
             <pointLight position={[6, 8, 6]} intensity={1.5} color="#60a5fa" />
@@ -215,14 +242,10 @@ export function CrystallizationLab() {
               setCrystalsFormed={setCrystalsFormed}
               crystalScale={crystalScale}
               setCrystalScale={setCrystalScale}
-              solutionTemp={solutionTemp}
-              setSolutionTemp={setSolutionTemp}
-              dishVolume={dishVolume}
-              setDishVolume={setDishVolume}
-              dishColor={dishColor}
-              setDishColor={setDishColor}
-              setIsPouringNow={setIsPouringNow}
+              setDisplayTemp={setDisplayTemp}
+              setDisplayVolume={setDisplayVolume}
               setTargetPrompt={setTargetPrompt}
+              setDebugInfo={setDebugInfo}
               spawnedItems={spawnedItems}
               setSpawnedItems={setSpawnedItems}
             />
@@ -232,13 +255,12 @@ export function CrystallizationLab() {
           {/* Action indicator */}
           <div className="absolute top-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none">
             <div className="bg-black/60 backdrop-blur-md px-6 py-2 rounded-full border border-white/20 flex items-center gap-3">
-              <div className={cn("w-2.5 h-2.5 rounded-full animate-pulse", isPouringNow ? "bg-cyan-400 shadow-[0_0_12px_#38bdf8]" : "bg-blue-400 shadow-[0_0_10px_#60a5fa]")} />
+              <div className={cn("w-2.5 h-2.5 rounded-full animate-pulse", debugInfo.pouring ? "bg-cyan-400 shadow-[0_0_12px_#38bdf8]" : "bg-blue-400 shadow-[0_0_10px_#60a5fa]")} />
               <span className="text-xs font-mono font-medium text-white/90">
                 {activeStep <= 5 ? `Step ${activeStep}: ${EXPERIMENT_STEPS[activeStep-1].text}` : "Pure CuSO4 Crystals Synthesized!"}
               </span>
             </div>
 
-            {/* Pouring Volume Target Banner */}
             {targetPrompt && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
@@ -257,21 +279,21 @@ export function CrystallizationLab() {
         {/* Right Telemetry */}
         <div className="w-72 flex flex-col gap-4 shrink-0 hidden lg:flex ml-auto z-20 pointer-events-none">
           <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-5 shrink-0 pointer-events-auto shadow-2xl">
-             <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-3 font-mono">Thermodynamics & Solvation</h3>
+             <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-3 font-mono">Thermodynamics</h3>
              <div className="grid grid-cols-2 gap-3 mb-3">
                 <div className="bg-white/5 p-3 rounded-xl border border-white/5">
                    <div className="text-[9px] uppercase text-white/40 mb-1 font-mono">Temperature</div>
-                   <div className="text-base font-mono font-bold text-amber-300">{solutionTemp.toFixed(0)}°C</div>
+                   <div className="text-base font-mono font-bold text-amber-300">{displayTemp.toFixed(0)}°C</div>
                 </div>
                 <div className="bg-white/5 p-3 rounded-xl border border-white/5">
                    <div className="text-[9px] uppercase text-white/40 mb-1 font-mono">Dish Volume</div>
-                   <div className="text-base font-mono font-bold text-cyan-300">{dishVolume.toFixed(1)} ml</div>
+                   <div className="text-base font-mono font-bold text-cyan-300">{displayVolume.toFixed(1)} ml</div>
                 </div>
              </div>
              <div className="w-full bg-white/5 p-2.5 rounded-xl border border-white/5 flex items-center justify-between font-mono text-xs">
                 <span className="text-white/50">Solution State:</span>
                 <span className={cn("font-bold", crystalsFormed ? "text-blue-400" : activeStep >= 4 ? "text-amber-300" : "text-cyan-300")}>
-                  {crystalsFormed ? 'Crystallized (Triclinic)' : activeStep >= 4 ? 'Saturated (85°C)' : dishVolume > 0 ? 'Dilute Solution' : 'Empty Dish'}
+                  {crystalsFormed ? 'Crystallized (Triclinic)' : activeStep >= 4 ? 'Saturated (85°C)' : displayVolume > 0 ? 'Dilute Solution' : 'Empty Dish'}
                 </span>
              </div>
           </div>
@@ -341,14 +363,10 @@ function CrystallizationScene({
   setCrystalsFormed,
   crystalScale,
   setCrystalScale,
-  solutionTemp, 
-  setSolutionTemp,
-  dishVolume,
-  setDishVolume,
-  dishColor,
-  setDishColor,
-  setIsPouringNow,
+  setDisplayTemp,
+  setDisplayVolume,
   setTargetPrompt,
+  setDebugInfo,
   spawnedItems, 
   setSpawnedItems 
 }: any) {
@@ -359,15 +377,18 @@ function CrystallizationScene({
   const targetPosRef = useRef(new THREE.Vector3());
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  // Pouring stream tracking
-  const [streamActive, setStreamActive] = useState(false);
-  const [streamFrom, setStreamFrom] = useState(new THREE.Vector3());
-  const [streamTo, setStreamTo] = useState(new THREE.Vector3());
-  const [streamColor, setStreamColor] = useState('#aaddff');
-  const [currentFlowRate, setCurrentFlowRate] = useState(25);
+  // --- Concrete Ref-Driven Fluid State ---
+  const volumeRef = useRef<number>(0);
+  const colorRef = useRef<THREE.Color>(new THREE.Color('#aaddff'));
+  const tempRef = useRef<number>(25);
+  const isPouringRef = useRef<boolean>(false);
+  const sourcePositionRef = useRef<THREE.Vector3>(new THREE.Vector3());
+  const targetYRef = useRef<number>(0);
+  const streamColorRef = useRef<THREE.Color>(new THREE.Color('#aaddff'));
 
   const hasPromptedTarget = useRef(false);
   const hasWarnedOverpour = useRef(false);
+  const throttleTimer = useRef<number>(0);
 
   useFrame((_, delta) => {
     const ptr = getPointer();
@@ -410,6 +431,8 @@ function CrystallizationScene({
     const heldId = draggedItemIdRef.current;
     const tripod = spawnedItems.find((i: any) => i.id === 'Tripod Burner');
 
+    let currentTilt = 0;
+
     // Continuous Pouring / Interaction Logic
     if (ptr.active && heldId && tripod) {
       const dishPos = new THREE.Vector3(tripod.x, tripod.y + 1.2, 0);
@@ -417,83 +440,68 @@ function CrystallizationScene({
         new THREE.Vector2(dishPos.x, dishPos.y + 0.8)
       );
 
-      const isOverDish = distToDish < 2.5 && targetPosRef.current.y > dishPos.y + 0.3;
+      const isAboveDish = distToDish < 2.5 && targetPosRef.current.y > dishPos.y + 0.3;
+      currentTilt = isAboveDish ? 55 : 0;
 
-      if (isOverDish) {
-        const tiltDeg = 55;
-        const flow = calculateFlowRate(tiltDeg, 25);
+      if (isAboveDish) {
+        const flow = calculateFlowRate(currentTilt, 28);
+        const addedVol = flow * delta;
 
         // Step 2: Continuous Distilled Water Pouring
         if (heldId === 'Distilled Water' && activeStep === 2) {
-          if (flow > 0) {
-            setStreamActive(true);
-            setStreamFrom(new THREE.Vector3(targetPosRef.current.x - 0.25, targetPosRef.current.y - 0.4, 0));
-            setStreamTo(new THREE.Vector3(dishPos.x, dishPos.y + 0.1, 0));
-            setStreamColor('#aaddff');
-            setCurrentFlowRate(flow);
-            setIsPouringNow(true);
+          isPouringRef.current = true;
+          sourcePositionRef.current.set(targetPosRef.current.x - 0.25, targetPosRef.current.y - 0.25, 0);
+          targetYRef.current = dishPos.y + 0.1;
+          streamColorRef.current.set('#aaddff');
 
-            setDishVolume((prevVol: number) => {
-              const newVol = Math.min(80, prevVol + flow * delta);
-              if (newVol >= 50 && !hasPromptedTarget.current) {
-                hasPromptedTarget.current = true;
-                setTargetPrompt("Target 50ml reached! Release bottle now.");
-              }
-              if (newVol >= 65 && !hasWarnedOverpour.current) {
-                hasWarnedOverpour.current = true;
-                triggerMistake("Overfilled dish! Slow crystallization works best with exact 50ml solvent.");
-              }
-              return newVol;
-            });
-            setDishColor('#aaddff');
+          volumeRef.current = Math.min(80, volumeRef.current + addedVol);
+          blendAndSetColor(colorRef, volumeRef.current, new THREE.Color('#aaddff'), addedVol);
+
+          if (volumeRef.current >= 50 && !hasPromptedTarget.current) {
+            hasPromptedTarget.current = true;
+            labAudio.playSuccessChime();
+            setTargetPrompt("Target 50ml reached! Release bottle now.");
+          }
+          if (volumeRef.current >= 65 && !hasWarnedOverpour.current) {
+            hasWarnedOverpour.current = true;
+            triggerMistake("Overfilled dish! Crystallization works best with 50ml solvent.");
           }
         }
         // Step 3: Dissolve CuSO4 Powder
         else if (heldId === 'CuSO4 Powder' && activeStep === 3) {
-          if (flow > 0) {
-            setStreamActive(true);
-            setStreamFrom(new THREE.Vector3(targetPosRef.current.x - 0.2, targetPosRef.current.y - 0.3, 0));
-            setStreamTo(new THREE.Vector3(dishPos.x, dishPos.y + 0.1, 0));
-            setStreamColor('#2563eb');
-            setCurrentFlowRate(flow);
-            setIsPouringNow(true);
+          isPouringRef.current = true;
+          sourcePositionRef.current.set(targetPosRef.current.x - 0.2, targetPosRef.current.y - 0.2, 0);
+          targetYRef.current = dishPos.y + 0.1;
+          streamColorRef.current.set('#2563eb');
 
-            // Volumetrically blend powder into deep blue solution
-            setDishColor((prevCol: string) => blendLiquidColors(prevCol, 50, '#1d4ed8', flow * delta * 2));
-            
-            if (!hasPromptedTarget.current) {
-              hasPromptedTarget.current = true;
-              setTargetPrompt("CuSO4 dissolving! Release once deep saturated blue.");
-            }
+          blendAndSetColor(colorRef, volumeRef.current, new THREE.Color('#1d4ed8'), addedVol * 2.5);
+          
+          if (!hasPromptedTarget.current) {
+            hasPromptedTarget.current = true;
+            setTargetPrompt("CuSO4 dissolving! Release once deep saturated blue.");
           }
         }
         // Step 4: Glass Stirrer heating & dissolving
         else if (heldId === 'Stirrer' && activeStep === 4) {
-          setStreamActive(false);
-          setIsPouringNow(false);
-          setSolutionTemp((prevT: number) => Math.min(85, prevT + 25 * delta));
-          if (solutionTemp >= 80 && !hasPromptedTarget.current) {
+          isPouringRef.current = false;
+          tempRef.current = Math.min(85, tempRef.current + 25 * delta);
+          if (tempRef.current >= 80 && !hasPromptedTarget.current) {
             hasPromptedTarget.current = true;
             setTargetPrompt("Saturation temperature reached (85°C)! Ready for cooling.");
           }
         } else {
-          setStreamActive(false);
-          setIsPouringNow(false);
+          isPouringRef.current = false;
         }
       } else {
-        setStreamActive(false);
-        setIsPouringNow(false);
+        isPouringRef.current = false;
       }
 
       // Update dragging position
       setSpawnedItems((prev: any) =>
-        prev.map((i: any) =>
-          i.id === heldId ? { ...i, x: targetPosRef.current.x, y: targetPosRef.current.y } : i
-        )
+        prev.map((i: any) => (i.id === heldId ? { ...i, x: targetPosRef.current.x, y: targetPosRef.current.y } : i))
       );
     } else {
-      setStreamActive(false);
-      setIsPouringNow(false);
+      isPouringRef.current = false;
     }
 
     // Release Item
@@ -513,10 +521,9 @@ function CrystallizationScene({
         if (distToDish < 3.2) {
           const expected = EXPERIMENT_STEPS[activeStep - 1];
           if (expected && expected.expectedTool === heldId) {
-            // Step validation
             if (heldId === 'Distilled Water') {
-              if (dishVolume >= 40) {
-                triggerSuccess(`Added ${dishVolume.toFixed(1)}ml Distilled Water solvent.`, 20);
+              if (volumeRef.current >= 40) {
+                triggerSuccess(`Added ${volumeRef.current.toFixed(1)}ml Distilled Water solvent.`, 20);
                 setActiveStep(3);
                 setCurrentStep(3);
                 draggedItemIdRef.current = null;
@@ -525,21 +532,21 @@ function CrystallizationScene({
                 triggerMistake("Not enough water! Please pour at least 45-50ml.");
               }
             } else if (heldId === 'CuSO4 Powder') {
-              setDishColor('#1d4ed8');
+              colorRef.current.set('#1d4ed8');
               triggerSuccess("Copper Sulphate dissolved to full saturation point.", 20);
               setActiveStep(4);
               setCurrentStep(4);
               draggedItemIdRef.current = null;
               return prev.filter((i: any) => i.id !== heldId);
             } else if (heldId === 'Stirrer') {
-              setSolutionTemp(85);
+              tempRef.current = 85;
               triggerSuccess("Stirred & heated solution to 85°C crystallization threshold.", 20);
               setActiveStep(5);
               setCurrentStep(5);
               draggedItemIdRef.current = null;
               return prev.filter((i: any) => i.id !== heldId);
             } else if (heldId === 'Cooling Dish') {
-              setSolutionTemp(22);
+              tempRef.current = 22;
               setCrystalsFormed(true);
               triggerSuccess("Undisturbed cooling completed: Pure blue CuSO4.5H2O crystals precipitated!", 30);
               setActiveStep(6);
@@ -561,8 +568,19 @@ function CrystallizationScene({
       setCrystalScale((s: number) => Math.min(1, s + delta * 0.8));
     }
 
+    // Throttled UI telemetry update
+    throttleTimer.current += delta;
+    if (throttleTimer.current > 0.15) {
+      throttleTimer.current = 0;
+      setDisplayVolume(volumeRef.current);
+      setDisplayTemp(tempRef.current);
+      setDebugInfo({ tilt: currentTilt, pouring: isPouringRef.current });
+    }
+
     wasActive.current = ptr.active;
   });
+
+  const tripod = spawnedItems.find((i: any) => i.id === 'Tripod Burner');
 
   return (
     <>
@@ -572,13 +590,26 @@ function CrystallizationScene({
       </mesh>
 
       {/* Dynamic Pouring Stream */}
-      <PourStreamMesh
-        from={streamFrom}
-        to={streamTo}
-        color={streamColor}
-        active={streamActive}
-        flowRate={currentFlowRate}
+      <PourStream
+        isPouringRef={isPouringRef}
+        sourcePositionRef={sourcePositionRef}
+        targetYRef={targetYRef}
+        colorRef={streamColorRef}
+        streamRadius={0.03}
       />
+
+      {/* Dynamic Liquid in Evaporating Dish */}
+      {tripod && (
+        <LiquidFill
+          volumeRef={volumeRef}
+          maxCapacity={80}
+          containerRadius={0.7}
+          containerHeight={0.35}
+          colorRef={colorRef}
+          offsetY={1.15}
+          position={[tripod.x, tripod.y, 0]}
+        />
+      )}
 
       {spawnedItems.map((item: any) => (
         <group key={item.id} position={[item.x, item.y, item.isDragging ? 1.5 : 0]}>
@@ -603,17 +634,6 @@ function CrystallizationScene({
                 <cylinderGeometry args={[0.9, 0.6, 0.4, 32]} />
                 <meshStandardMaterial color="#f8fafc" roughness={0.2} />
               </mesh>
-              
-              {/* Dynamic Liquid Mesh in Dish */}
-              {dishVolume > 0 && (
-                <LiquidMesh
-                  position={[0, 1.1 + (dishVolume / 80) * 0.15, 0]}
-                  radius={0.55 + (dishVolume / 80) * 0.25}
-                  height={(dishVolume / 80) * 0.25}
-                  color={dishColor}
-                  opacity={0.88}
-                />
-              )}
 
               {/* Bunsen Burner Flame when heating */}
               {activeStep === 4 && (
