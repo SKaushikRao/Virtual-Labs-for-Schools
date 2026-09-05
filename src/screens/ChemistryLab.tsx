@@ -32,6 +32,8 @@ const INVENTORY_ITEMS = [
   { id: 'Filter Paper', type: 'Paper', color: '#ffffff', icon: '📄', name: 'Filter Paper', desc: 'Cellulose filter paper' },
 ];
 
+import { PourStreamMesh, LiquidMesh, calculateFlowRate, blendLiquidColors } from '../components/fluids/FluidSystem';
+
 export function ChemistryLab() {
   const addScore = useAppStore(state => state.addScore);
   const score = useAppStore(state => state.score);
@@ -47,6 +49,13 @@ export function ChemistryLab() {
   const [mistakeShaking, setMistakeShaking] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<typeof INVENTORY_ITEMS[0] | null>(null);
 
+  // Continuous Fluid State
+  const [beakerVolume, setBeakerVolume] = useState(0); // in ml (max 100ml)
+  const [beakerColor, setBeakerColor] = useState('#aaddff');
+  const [isPouringNow, setIsPouringNow] = useState(false);
+  const [targetPrompt, setTargetPrompt] = useState<string | null>(null);
+  const [neutralized, setNeutralized] = useState(false);
+
   const [logs, setLogs] = useState<{time: string, msg: string, type: 'info'|'warn'|'success'}[]>([
     { time: new Date().toLocaleTimeString('en-US', { hour12: false }), msg: 'Chemistry Lab ready. Place beaker on table to start.', type: 'info' }
   ]);
@@ -54,9 +63,6 @@ export function ChemistryLab() {
   const [spawnedItems, setSpawnedItems] = useState<{id: string, type: string, color: string, name: string, x: number, y: number, isDragging: boolean}[]>([]);
   const spawnedItemsRef = useRef(spawnedItems);
   spawnedItemsRef.current = spawnedItems;
-
-  const [beakerColor, setBeakerColor] = useState('#ffffff');
-  const [neutralized, setNeutralized] = useState(false);
 
   useEffect(() => {
     setTotalSteps(EXPERIMENT_STEPS.length);
@@ -96,7 +102,7 @@ export function ChemistryLab() {
       const nonBeakerCount = spawnedItemsRef.current.filter(i => i.id !== 'Beaker').length;
       const xPos = -4 + nonBeakerCount * 2;
       setSpawnedItems(prev => [...prev, { ...item, x: xPos, y: -0.5, isDragging: false }]);
-      addLog(`Placed ${item.name} on table. Drag over beaker to react.`, "info");
+      addLog(`Placed ${item.name} on table. Hold and tilt over beaker to pour.`, "info");
     }
   };
 
@@ -157,7 +163,7 @@ export function ChemistryLab() {
             <span className="text-[10px] uppercase font-bold tracking-[0.2em] text-[#c084fc] mb-1 font-mono">Module 1</span>
             <h2 className="text-xl font-bold leading-tight mb-2 text-white">Acid-Base Titration</h2>
             <p className="text-xs text-white/50 leading-relaxed">
-              Click/pinch apparatus in the bottom hotbar to spawn them on table, then drag chemicals into the beaker.
+              Tilt reagent bottles over the beaker to pour liquid continuously. Watch the fill line and stop pouring at target volume!
             </p>
           </motion.div>
 
@@ -215,20 +221,41 @@ export function ChemistryLab() {
                triggerMistake={triggerMistake}
                beakerColor={beakerColor}
                setBeakerColor={setBeakerColor}
+               beakerVolume={beakerVolume}
+               setBeakerVolume={setBeakerVolume}
                neutralized={neutralized}
                setNeutralized={setNeutralized}
+               setIsPouringNow={setIsPouringNow}
+               setTargetPrompt={setTargetPrompt}
                spawnedItems={spawnedItems}
                setSpawnedItems={setSpawnedItems}
             />
             <ContactShadows position={[0, -2, 0]} opacity={0.4} scale={25} blur={2} />
           </Canvas>
 
-          {/* Action indicator */}
-          <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-6 py-2 rounded-full border border-white/20 flex items-center gap-3 pointer-events-none">
-             <div className="w-2.5 h-2.5 bg-[#c084fc] rounded-full shadow-[0_0_10px_#c084fc] animate-pulse"></div>
-             <span className="text-xs font-mono font-medium text-white/90">
-               {activeStep <= 5 ? `Active Step ${activeStep}: ${EXPERIMENT_STEPS[activeStep-1].text}` : "Experiment Successfully Neutralized!"}
-             </span>
+          {/* Action indicator & Stop Pour Prompt */}
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none">
+            <div className="bg-black/60 backdrop-blur-md px-6 py-2 rounded-full border border-white/20 flex items-center gap-3">
+              <div className={cn("w-2.5 h-2.5 rounded-full animate-pulse", isPouringNow ? "bg-cyan-400 shadow-[0_0_12px_#22d3ee]" : "bg-[#c084fc]")} />
+              <span className="text-xs font-mono font-medium text-white/90">
+                {activeStep <= 5 ? `Active Step ${activeStep}: ${EXPERIMENT_STEPS[activeStep-1].text}` : "Experiment Successfully Neutralized!"}
+              </span>
+            </div>
+
+            {/* Target Reached Stop Prompt Banner */}
+            <AnimatePresence>
+              {targetPrompt && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9, y: -5 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: -5 }}
+                  className="bg-emerald-500/90 text-white font-bold text-xs px-5 py-2 rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.7)] border border-emerald-300 flex items-center gap-2 animate-bounce"
+                >
+                  <span>🛑</span>
+                  <span>{targetPrompt}</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           <video ref={videoRef} playsInline muted className="absolute w-36 h-28 top-20 right-6 object-cover rounded-2xl border border-white/20 opacity-40 z-10 scale-x-[-1] pointer-events-none" />
@@ -238,17 +265,23 @@ export function ChemistryLab() {
         <div className="w-72 flex flex-col gap-4 shrink-0 hidden lg:flex ml-auto z-20 pointer-events-none">
           <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-5 shrink-0 pointer-events-auto shadow-2xl">
              <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-3 font-mono">Live Telemetry</h3>
-             <div className="grid grid-cols-2 gap-3">
+             <div className="grid grid-cols-2 gap-3 mb-3">
                 <div className="bg-white/5 p-3 rounded-xl border border-white/5">
-                   <div className="text-[9px] uppercase text-white/40 mb-1 font-mono">Temperature</div>
-                   <div className="text-lg font-mono font-bold text-[#ff44ec]">25.2°C</div>
+                   <div className="text-[9px] uppercase text-white/40 mb-1 font-mono">Volume (V)</div>
+                   <div className="text-lg font-mono font-bold text-cyan-300">{beakerVolume.toFixed(1)} ml</div>
                 </div>
                 <div className="bg-white/5 p-3 rounded-xl border border-white/5">
                    <div className="text-[9px] uppercase text-white/40 mb-1 font-mono">pH Value</div>
-                   <div className="text-lg font-mono font-bold text-[#00f2ff] transition-all">
-                     {activeStep < 4 ? '7.0' : activeStep === 4 ? '12.8' : '7.0'}
+                   <div className="text-lg font-mono font-bold text-[#ff44ec] transition-all">
+                     {activeStep < 3 ? '7.0' : activeStep === 3 ? '13.0' : activeStep === 4 ? '13.0' : neutralized ? '7.0' : '9.5'}
                    </div>
                 </div>
+             </div>
+             <div className="w-full bg-white/5 p-2.5 rounded-xl border border-white/5 flex items-center justify-between font-mono text-xs">
+                <span className="text-white/50">Reaction State:</span>
+                <span className={cn("font-bold", neutralized ? "text-emerald-400" : activeStep >= 4 ? "text-rose-400" : "text-cyan-300")}>
+                  {neutralized ? "Equivalence (pH 7)" : activeStep >= 4 ? "Basic Solution" : "Pre-reaction"}
+                </span>
              </div>
           </div>
 
@@ -303,86 +336,221 @@ export function ChemistryLab() {
   );
 }
 
-function LabScene({ getPointer, activeStep, setActiveStep, setCurrentStep, triggerSuccess, triggerMistake, beakerColor, setBeakerColor, neutralized, setNeutralized, spawnedItems, setSpawnedItems }: any) {
+function LabScene({
+  getPointer,
+  activeStep,
+  setActiveStep,
+  setCurrentStep,
+  triggerSuccess,
+  triggerMistake,
+  beakerColor,
+  setBeakerColor,
+  beakerVolume,
+  setBeakerVolume,
+  neutralized,
+  setNeutralized,
+  setIsPouringNow,
+  setTargetPrompt,
+  spawnedItems,
+  setSpawnedItems,
+}: any) {
   const { viewport } = useThree();
   const draggedItemIdRef = useRef<string | null>(null);
+  const hoveredItemIdRef = useRef<string | null>(null);
   const wasActive = useRef(false);
   const targetPosRef = useRef(new THREE.Vector3());
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [particles, setParticles] = useState<number[]>([]);
 
-  useFrame(() => {
+  // Pouring stream tracking
+  const [streamActive, setStreamActive] = useState(false);
+  const [streamFrom, setStreamFrom] = useState(new THREE.Vector3());
+  const [streamTo, setStreamTo] = useState(new THREE.Vector3());
+  const [streamColor, setStreamColor] = useState('#ffffff');
+  const [currentFlowRate, setCurrentFlowRate] = useState(20);
+
+  const hasPromptedTarget = useRef(false);
+  const hasWarnedOverpour = useRef(false);
+
+  useFrame((_, delta) => {
     const ptr = getPointer();
-    const targetX = (ptr.x * 2 - 1) * (viewport.width / 2);
-    const targetY = -(ptr.y * 2 - 1) * (viewport.height / 2);
-    targetPosRef.current.set(targetX, targetY, 2);
+    const ndcX = ptr.x * 2 - 1;
+    const ndcY = -(ptr.y * 2 - 1);
+    const targetX = ndcX * (viewport.width / 2);
+    const targetY = ndcY * (viewport.height / 2);
+    targetPosRef.current.lerp(new THREE.Vector3(targetX, targetY, 2), 0.35);
+
+    // Hover detection
+    if (!draggedItemIdRef.current) {
+      let foundHover: string | null = null;
+      let minHoverDist = 2.4;
+
+      spawnedItems.forEach((item: any) => {
+        if (item.id === 'Beaker') return;
+        const dist = new THREE.Vector2(targetX, targetY).distanceTo(new THREE.Vector2(item.x, item.y));
+        if (dist < minHoverDist) {
+          minHoverDist = dist;
+          foundHover = item.id;
+        }
+      });
+
+      if (foundHover !== hoveredItemIdRef.current) {
+        if (foundHover) labAudio.playHoverSound();
+        hoveredItemIdRef.current = foundHover;
+        setHoveredId(foundHover);
+      }
+    }
 
     const grabbed = ptr.active && !wasActive.current;
     const released = !ptr.active && wasActive.current;
 
-    // Pick up items
-    if (grabbed) {
-      let closest: any = null;
-      let minDist = 3.0; 
-      spawnedItems.forEach((item: any) => {
-        if (item.id === 'Beaker') return;
-        const dist = new THREE.Vector2(targetX, targetY).distanceTo(new THREE.Vector2(item.x, item.y));
-        if (dist < minDist) {
-          minDist = dist;
-          closest = item;
+    // Grab
+    if (grabbed && hoveredItemIdRef.current) {
+      const grabId = hoveredItemIdRef.current;
+      draggedItemIdRef.current = grabId;
+      labAudio.playGrabSound();
+      setSpawnedItems((prev: any) => prev.map((i: any) => (i.id === grabId ? { ...i, isDragging: true } : i)));
+    }
+
+    // Continuous Pouring Logic when bottle is dragged over Beaker
+    const heldId = draggedItemIdRef.current;
+    const beaker = spawnedItems.find((i: any) => i.id === 'Beaker');
+
+    if (ptr.active && heldId && beaker) {
+      const distToBeaker = new THREE.Vector2(targetPosRef.current.x, targetPosRef.current.y).distanceTo(
+        new THREE.Vector2(beaker.x, beaker.y + 1.6)
+      );
+
+      const isOverBeaker = distToBeaker < 2.5 && targetPosRef.current.y > beaker.y + 0.5;
+
+      if (isOverBeaker) {
+        // Tilt angle increases as bottle moves closer to pouring position
+        const tiltDeg = 55; // Tilt threshold exceeded
+        const flow = calculateFlowRate(tiltDeg, 25); // ~25 ml/sec
+
+        const spoutPos = new THREE.Vector3(targetPosRef.current.x - 0.25, targetPosRef.current.y - 0.3, 0);
+        const liquidSurfaceY = beaker.y - 0.3 + (beakerVolume / 100) * 1.5;
+        const targetSurfacePos = new THREE.Vector3(beaker.x, liquidSurfaceY, 0);
+
+        setStreamFrom(spoutPos);
+        setStreamTo(targetSurfacePos);
+        setCurrentFlowRate(flow);
+        setStreamActive(true);
+        setIsPouringNow(true);
+
+        const expected = EXPERIMENT_STEPS[activeStep - 1];
+
+        // Step 2: Distilled Water rinse
+        if (heldId === 'Distilled Water' && activeStep === 2) {
+          setStreamColor('#aaddff');
+          setBeakerVolume((v: number) => {
+            const nextVol = Math.min(25, v + flow * delta);
+            if (nextVol >= 20 && !hasPromptedTarget.current) {
+              hasPromptedTarget.current = true;
+              labAudio.playSuccessChime();
+              setTargetPrompt('Target reached (20ml rinse) — stop pouring!');
+            }
+            return nextVol;
+          });
         }
-      });
-      
-      if (closest) {
-        draggedItemIdRef.current = closest.id;
-        labAudio.playGrabSound();
-        setSpawnedItems((prev: any) => prev.map((i: any) => i.id === closest.id ? { ...i, isDragging: true } : i));
+
+        // Step 3: NaOH Base Fill
+        if (heldId === 'NaOH' && activeStep === 3) {
+          setStreamColor('#4e44ff');
+          setBeakerVolume((v: number) => {
+            const nextVol = Math.min(100, v + flow * delta);
+            if (nextVol >= 50 && !hasPromptedTarget.current) {
+              hasPromptedTarget.current = true;
+              labAudio.playSuccessChime();
+              setTargetPrompt('Target reached (50ml NaOH) — stop pouring!');
+            }
+            if (nextVol > 75 && !hasWarnedOverpour.current) {
+              hasWarnedOverpour.current = true;
+              triggerMistake('Overpoured NaOH! Solution excess basic.');
+            }
+            return nextVol;
+          });
+        }
+
+        // Step 4: Indicator addition (dropper)
+        if (heldId === 'Indicator' && activeStep === 4) {
+          setStreamColor('#ff44ec');
+          setBeakerColor('#ff44ec');
+          setTargetPrompt('Indicator added! Observe vibrant pink basic color.');
+        }
+
+        // Step 5: HCl Titration Pour
+        if (heldId === 'HCl' && activeStep === 5) {
+          setStreamColor('#f5d0fe');
+          setBeakerVolume((v: number) => {
+            const nextVol = Math.min(100, v + flow * delta);
+            // Equivalence point reached around ~90ml total volume
+            if (nextVol >= 85) {
+              setBeakerColor('#f5d0fe');
+              setNeutralized(true);
+              setParticles(Array.from({ length: 25 }).map(() => Math.random()));
+              if (!hasPromptedTarget.current) {
+                hasPromptedTarget.current = true;
+                labAudio.playSuccessChime();
+                setTargetPrompt('Equivalence Point Reached (pH 7.0)! Stop titration!');
+              }
+            }
+            if (nextVol > 98 && !hasWarnedOverpour.current) {
+              hasWarnedOverpour.current = true;
+              triggerMistake('Over-titrated! Solution turned acidic.');
+            }
+            return nextVol;
+          });
+        }
+      } else {
+        setStreamActive(false);
+        setIsPouringNow(false);
       }
+    } else {
+      setStreamActive(false);
+      setIsPouringNow(false);
     }
 
-    // Dragging
+    // Dragging position update
     if (ptr.active && draggedItemIdRef.current) {
-      setSpawnedItems((prev: any) => prev.map((i: any) => i.id === draggedItemIdRef.current ? { ...i, x: targetPosRef.current.x, y: targetPosRef.current.y } : i));
+      setSpawnedItems((prev: any) =>
+        prev.map((i: any) =>
+          i.id === draggedItemIdRef.current ? { ...i, x: targetPosRef.current.x, y: targetPosRef.current.y } : i
+        )
+      );
     }
 
-    // Drop & React
+    // Release / Step completion
     if (released && draggedItemIdRef.current) {
       const itemId = draggedItemIdRef.current;
+      setStreamActive(false);
+      setIsPouringNow(false);
+      setTargetPrompt(null);
+      hasPromptedTarget.current = false;
+      hasWarnedOverpour.current = false;
+
       setSpawnedItems((prev: any) => {
         const item = prev.find((i: any) => i.id === itemId);
         if (!item) return prev;
 
-        const beaker = prev.find((i: any) => i.id === 'Beaker');
-        if (beaker) {
-          const distToBeaker = new THREE.Vector2(item.x, item.y).distanceTo(new THREE.Vector2(beaker.x, beaker.y + 1.5));
-          if (distToBeaker < 3.2) {
-            const expected = EXPERIMENT_STEPS[activeStep - 1];
-            if (expected && expected.expectedTool === item.id) {
-              labAudio.playPourEffect();
-              triggerSuccess(`Successfully added ${item.name}.`, 20);
-              
-              if (item.id === 'NaOH') setBeakerColor('#4e44ff');
-              if (item.id === 'Indicator') setBeakerColor('#ff44ec');
-              if (item.id === 'HCl') {
-                setBeakerColor('#f5d0fe');
-                setNeutralized(true);
-                setParticles(Array.from({ length: 25 }).map(() => Math.random()));
-              }
-              
-              const nextStep = activeStep + 1;
-              setActiveStep(nextStep);
-              setCurrentStep(nextStep);
-              
-              draggedItemIdRef.current = null;
-              return prev.filter((i: any) => i.id !== item.id);
-            } else {
-              triggerMistake(`Wrong tool! For Step ${activeStep}, you need: ${expected?.expectedTool || 'None'}`);
-            }
-          }
+        const expected = EXPERIMENT_STEPS[activeStep - 1];
+        if (expected && expected.expectedTool === item.id) {
+          triggerSuccess(`Completed Step ${activeStep} with ${item.name}!`, 20);
+
+          const nextStep = activeStep + 1;
+          setActiveStep(nextStep);
+          setCurrentStep(nextStep);
+
+          draggedItemIdRef.current = null;
+          hoveredItemIdRef.current = null;
+          setHoveredId(null);
+          return prev.filter((i: any) => i.id !== item.id);
         }
-        
-        return prev.map((i: any) => i.id === item.id ? { ...i, isDragging: false, y: -0.5 } : i);
+
+        labAudio.playReleaseSound();
+        return prev.map((i: any) => (i.id === item.id ? { ...i, isDragging: false, y: -0.5 } : i));
       });
-      
+
       draggedItemIdRef.current = null;
     }
 
@@ -396,11 +564,22 @@ function LabScene({ getPointer, activeStep, setActiveStep, setCurrentStep, trigg
         <meshStandardMaterial color="#121324" roughness={0.3} metalness={0.4} />
       </mesh>
 
+      {/* Dynamic Liquid Pour Stream */}
+      <PourStreamMesh
+        from={streamFrom}
+        to={streamTo}
+        color={streamColor}
+        active={streamActive}
+        flowRate={currentFlowRate}
+      />
+
       {spawnedItems.map((item: any) => (
-        <SpawnedItemRenderer 
+        <SpawnedItemRenderer
           key={item.id}
           item={item}
+          isHovered={hoveredId === item.id}
           beakerColor={item.id === 'Beaker' ? beakerColor : undefined}
+          beakerVolume={item.id === 'Beaker' ? beakerVolume : undefined}
           neutralized={item.id === 'Beaker' ? neutralized : undefined}
           particles={item.id === 'Beaker' ? particles : undefined}
         />
@@ -409,18 +588,23 @@ function LabScene({ getPointer, activeStep, setActiveStep, setCurrentStep, trigg
   );
 }
 
-function SpawnedItemRenderer({ item, beakerColor, neutralized, particles }: any) {
+function SpawnedItemRenderer({ item, isHovered, beakerColor, beakerVolume = 0, neutralized, particles }: any) {
   const groupRef = useRef<THREE.Group>(null);
-  
+
   useFrame(() => {
     if (groupRef.current) {
       const targetPos = new THREE.Vector3(item.x, item.y, item.isDragging ? 2 : 0);
       groupRef.current.position.lerp(targetPos, 0.35);
-      
+
       if (item.isDragging) {
-        groupRef.current.rotation.z = THREE.MathUtils.lerp(groupRef.current.rotation.z, -Math.PI / 8, 0.2);
+        groupRef.current.rotation.z = THREE.MathUtils.lerp(groupRef.current.rotation.z, -Math.PI / 4, 0.2);
+        groupRef.current.scale.lerp(new THREE.Vector3(1.12, 1.12, 1.12), 0.2);
+      } else if (isHovered) {
+        groupRef.current.rotation.z = THREE.MathUtils.lerp(groupRef.current.rotation.z, 0, 0.2);
+        groupRef.current.scale.lerp(new THREE.Vector3(1.08, 1.08, 1.08), 0.2);
       } else {
         groupRef.current.rotation.z = THREE.MathUtils.lerp(groupRef.current.rotation.z, 0, 0.2);
+        groupRef.current.scale.lerp(new THREE.Vector3(1.0, 1.0, 1.0), 0.2);
       }
     }
   });
@@ -428,16 +612,23 @@ function SpawnedItemRenderer({ item, beakerColor, neutralized, particles }: any)
   return (
     <group ref={groupRef}>
       {item.type === 'Beaker' && (
-        <Float speed={2} rotationIntensity={0.05} floatIntensity={0.1}>
-          <Beaker color={beakerColor!} />
+        <Float speed={2} rotationIntensity={0.03} floatIntensity={0.08}>
+          <Beaker color={beakerColor!} volume={beakerVolume} />
           {neutralized && (
-            <Text position={[0, 3.2, 0]} fontSize={0.55} color="#ff44ec" anchorX="center" anchorY="middle" outlineWidth={0.03} outlineColor="#000000">
+            <Text
+              position={[0, 3.2, 0]}
+              fontSize={0.55}
+              color="#ff44ec"
+              anchorX="center"
+              anchorY="middle"
+              outlineWidth={0.03}
+              outlineColor="#000000"
+            >
               Neutralized (pH 7.0)!
             </Text>
           )}
-          {particles && particles.map((p: number, i: number) => (
-            <Bubble key={i} delay={p} active={neutralized!} />
-          ))}
+          {particles &&
+            particles.map((p: number, i: number) => <Bubble key={i} delay={p} active={neutralized!} />)}
         </Float>
       )}
       {item.type === 'Bottle' && <Bottle color={item.color} />}
@@ -449,20 +640,34 @@ function SpawnedItemRenderer({ item, beakerColor, neutralized, particles }: any)
   );
 }
 
-function Beaker({ color }: { color: string }) {
+function Beaker({ color, volume = 0 }: { color: string; volume?: number }) {
   return (
     <group position={[0, -1, 0]}>
-      <mesh position={[0, 0.8, 0]}>
-        <cylinderGeometry args={[0.9, 0.9, 1.4, 32]} />
-        <meshStandardMaterial color={color} roughness={0.1} transparent opacity={0.85} />
-      </mesh>
+      {/* Liquid Mesh driven by continuous volume (0 - 100ml) */}
+      <LiquidMesh
+        position={[0, 0, 0]}
+        radiusTop={0.88}
+        radiusBottom={0.88}
+        maxHeight={2.0}
+        fillRatio={volume / 100}
+        color={color}
+      />
+      {/* Glass Beaker Body */}
       <mesh position={[0, 1.25, 0]}>
         <cylinderGeometry args={[1, 1, 2.5, 32]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.1} transparent opacity={0.3} side={THREE.DoubleSide} />
+        <meshPhysicalMaterial
+          color="#ffffff"
+          roughness={0.05}
+          transmission={0.92}
+          transparent
+          opacity={0.35}
+          side={THREE.DoubleSide}
+        />
       </mesh>
     </group>
   );
 }
+
 
 function Bottle({ color }: { color: string }) {
   return (

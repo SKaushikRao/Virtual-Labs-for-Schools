@@ -13,21 +13,22 @@ import { LabTopBar } from '../components/ui/LabTopBar';
 import { GestureCursor } from '../components/ui/GestureCursor';
 import { AIMentorPanel } from '../components/mentor/AIMentorPanel';
 import { GestureTutorial } from '../components/GestureTutorial';
+import { PourStreamMesh, LiquidMesh, calculateFlowRate, blendLiquidColors } from '../components/fluids/FluidSystem';
 
 const EXPERIMENT_STEPS = [
   { id: 1, text: "Place the Tripod Stand & Burner on the bench.", expectedTool: "Tripod Burner" },
   { id: 2, text: "Add 50ml Distilled Water into the evaporating dish.", expectedTool: "Distilled Water" },
   { id: 3, text: "Dissolve Copper Sulphate (CuSO4) powder until saturated.", expectedTool: "CuSO4 Powder" },
-  { id: 4, text: "Heat solution to crystallization point.", expectedTool: "Stirrer" },
-  { id: 5, text: "Allow undisturbed cooling to precipitate blue crystals.", expectedTool: "Cooling Dish" }
+  { id: 4, text: "Heat and stir solution to saturation point (85°C).", expectedTool: "Stirrer" },
+  { id: 5, text: "Place China cooling dish for slow precipitation.", expectedTool: "Cooling Dish" }
 ];
 
 const INVENTORY_ITEMS = [
   { id: 'Tripod Burner', type: 'Apparatus', color: '#666', icon: '🔥', name: 'Tripod & Burner', desc: 'Heating assembly with wire gauze' },
-  { id: 'Distilled Water', type: 'Bottle', color: '#aaddff', icon: '💧', name: 'Dist. Water', desc: 'Pure water solvent' },
-  { id: 'CuSO4 Powder', type: 'Powder', color: '#2563eb', icon: '🧪', name: 'CuSO4 Powder', desc: 'Copper Sulphate pentahydrate powder' },
+  { id: 'Distilled Water', type: 'Bottle', color: '#aaddff', icon: '💧', name: 'Dist. Water', desc: 'Pure water solvent (Target: 50ml)' },
+  { id: 'CuSO4 Powder', type: 'Powder', color: '#2563eb', icon: '🧪', name: 'CuSO4 Powder', desc: 'Copper Sulphate pentahydrate' },
   { id: 'Stirrer', type: 'Rod', color: '#ffffff', icon: '🪄', name: 'Glass Stirrer', desc: 'Used for continuous uniform dissolution' },
-  { id: 'Cooling Dish', type: 'Dish', color: '#60a5fa', icon: '❄️', name: 'China Dish', desc: 'Porcelain dish for slow undisturbed crystallization' },
+  { id: 'Cooling Dish', type: 'Dish', color: '#60a5fa', icon: '❄️', name: 'China Dish', desc: 'Porcelain dish for slow crystallization' },
 ];
 
 export function CrystallizationLab() {
@@ -45,7 +46,14 @@ export function CrystallizationLab() {
   const [mistakeShaking, setMistakeShaking] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<typeof INVENTORY_ITEMS[0] | null>(null);
   const [crystalsFormed, setCrystalsFormed] = useState(false);
+  const [crystalScale, setCrystalScale] = useState(0);
   const [solutionTemp, setSolutionTemp] = useState(25);
+  
+  // Continuous Fluid in Evaporating Dish
+  const [dishVolume, setDishVolume] = useState(0); // 0 to 80ml
+  const [dishColor, setDishColor] = useState('#aaddff');
+  const [isPouringNow, setIsPouringNow] = useState(false);
+  const [targetPrompt, setTargetPrompt] = useState<string | null>(null);
 
   const [logs, setLogs] = useState<{time: string, msg: string, type: 'info'|'warn'|'success'}[]>([
     { time: new Date().toLocaleTimeString('en-US', { hour12: false }), msg: 'Crystallization Laboratory Initialized.', type: 'info' }
@@ -88,7 +96,7 @@ export function CrystallizationLab() {
     const count = spawnedItemsRef.current.filter(i => i.id !== 'Tripod Burner').length;
     const xPos = -4 + (count % 4) * 2;
     setSpawnedItems(prev => [...prev, { ...item, x: xPos, y: -0.6, isDragging: false }]);
-    addLog(`Placed ${item.name} on bench. Drag into the dish on the tripod!`, "info");
+    addLog(`Placed ${item.name} on bench. Drag & tilt over dish to pour!`, "info");
   };
 
   const spawnItemRef = useRef(spawnItem);
@@ -147,7 +155,7 @@ export function CrystallizationLab() {
             <span className="text-[10px] uppercase font-bold tracking-[0.2em] text-[#c084fc] mb-1">Purification Process</span>
             <h2 className="text-xl font-bold leading-tight mb-2 text-white">Crystallization</h2>
             <p className="text-xs text-white/50 leading-relaxed">
-              Dissolve CuSO4, heat to saturation point, then allow slow undisturbed cooling to form pure triclinic crystals.
+              Dissolve CuSO4, heat to saturation point (85°C), then allow slow undisturbed cooling to form pure triclinic crystals.
             </p>
           </motion.div>
 
@@ -205,8 +213,16 @@ export function CrystallizationLab() {
               triggerMistake={triggerMistake}
               crystalsFormed={crystalsFormed}
               setCrystalsFormed={setCrystalsFormed}
+              crystalScale={crystalScale}
+              setCrystalScale={setCrystalScale}
               solutionTemp={solutionTemp}
               setSolutionTemp={setSolutionTemp}
+              dishVolume={dishVolume}
+              setDishVolume={setDishVolume}
+              dishColor={dishColor}
+              setDishColor={setDishColor}
+              setIsPouringNow={setIsPouringNow}
+              setTargetPrompt={setTargetPrompt}
               spawnedItems={spawnedItems}
               setSpawnedItems={setSpawnedItems}
             />
@@ -214,11 +230,25 @@ export function CrystallizationLab() {
           </Canvas>
 
           {/* Action indicator */}
-          <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-6 py-2 rounded-full border border-white/20 flex items-center gap-3 pointer-events-none">
-            <div className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-pulse shadow-[0_0_10px_#60a5fa]" />
-            <span className="text-xs font-mono font-medium text-white/90">
-              {activeStep <= 5 ? `Step ${activeStep}: ${EXPERIMENT_STEPS[activeStep-1].text}` : "Pure CuSO4 Crystals Synthesized!"}
-            </span>
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none">
+            <div className="bg-black/60 backdrop-blur-md px-6 py-2 rounded-full border border-white/20 flex items-center gap-3">
+              <div className={cn("w-2.5 h-2.5 rounded-full animate-pulse", isPouringNow ? "bg-cyan-400 shadow-[0_0_12px_#38bdf8]" : "bg-blue-400 shadow-[0_0_10px_#60a5fa]")} />
+              <span className="text-xs font-mono font-medium text-white/90">
+                {activeStep <= 5 ? `Step ${activeStep}: ${EXPERIMENT_STEPS[activeStep-1].text}` : "Pure CuSO4 Crystals Synthesized!"}
+              </span>
+            </div>
+
+            {/* Pouring Volume Target Banner */}
+            {targetPrompt && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="bg-emerald-500/20 backdrop-blur-md border border-emerald-400/50 px-4 py-1.5 rounded-full text-[11px] font-mono font-semibold text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+              >
+                {targetPrompt}
+              </motion.div>
+            )}
           </div>
 
           <video ref={videoRef} playsInline muted className="absolute w-36 h-28 top-20 right-6 object-cover rounded-2xl border border-white/20 opacity-40 z-10 scale-x-[-1] pointer-events-none" />
@@ -227,16 +257,22 @@ export function CrystallizationLab() {
         {/* Right Telemetry */}
         <div className="w-72 flex flex-col gap-4 shrink-0 hidden lg:flex ml-auto z-20 pointer-events-none">
           <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-5 shrink-0 pointer-events-auto shadow-2xl">
-             <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-3 font-mono">Thermodynamics</h3>
+             <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-3 font-mono">Thermodynamics & Solvation</h3>
              <div className="grid grid-cols-2 gap-3 mb-3">
                 <div className="bg-white/5 p-3 rounded-xl border border-white/5">
                    <div className="text-[9px] uppercase text-white/40 mb-1 font-mono">Temperature</div>
-                   <div className="text-base font-mono font-bold text-amber-300">{solutionTemp}°C</div>
+                   <div className="text-base font-mono font-bold text-amber-300">{solutionTemp.toFixed(0)}°C</div>
                 </div>
                 <div className="bg-white/5 p-3 rounded-xl border border-white/5">
-                   <div className="text-[9px] uppercase text-white/40 mb-1 font-mono">State</div>
-                   <div className="text-base font-mono font-bold text-cyan-300">{crystalsFormed ? 'Precipitated' : activeStep >= 4 ? 'Saturated' : 'Dilute'}</div>
+                   <div className="text-[9px] uppercase text-white/40 mb-1 font-mono">Dish Volume</div>
+                   <div className="text-base font-mono font-bold text-cyan-300">{dishVolume.toFixed(1)} ml</div>
                 </div>
+             </div>
+             <div className="w-full bg-white/5 p-2.5 rounded-xl border border-white/5 flex items-center justify-between font-mono text-xs">
+                <span className="text-white/50">Solution State:</span>
+                <span className={cn("font-bold", crystalsFormed ? "text-blue-400" : activeStep >= 4 ? "text-amber-300" : "text-cyan-300")}>
+                  {crystalsFormed ? 'Crystallized (Triclinic)' : activeStep >= 4 ? 'Saturated (85°C)' : dishVolume > 0 ? 'Dilute Solution' : 'Empty Dish'}
+                </span>
              </div>
           </div>
 
@@ -277,7 +313,10 @@ export function CrystallizationLab() {
                  data-item-name={item.name}
                  onClick={() => spawnItem(item)}
                  onPointerDown={() => spawnItem(item)}
-                 onMouseEnter={() => setHoveredItem(item)}
+                 onMouseEnter={() => {
+                   setHoveredItem(item);
+                   labAudio.playHoverSound();
+                 }}
                  onMouseLeave={() => setHoveredItem(null)}
                  className="min-w-[100px] h-28 bg-white/5 border border-white/10 rounded-2xl flex flex-col items-center justify-center gap-1.5 hover:bg-white/10 transition-all cursor-pointer group hover:-translate-y-3 hover:border-purple-400/60 select-none"
               >
@@ -291,84 +330,237 @@ export function CrystallizationLab() {
   );
 }
 
-function CrystallizationScene({ getPointer, activeStep, setActiveStep, setCurrentStep, triggerSuccess, triggerMistake, crystalsFormed, setCrystalsFormed, solutionTemp, setSolutionTemp, spawnedItems, setSpawnedItems }: any) {
+function CrystallizationScene({ 
+  getPointer, 
+  activeStep, 
+  setActiveStep, 
+  setCurrentStep, 
+  triggerSuccess, 
+  triggerMistake, 
+  crystalsFormed, 
+  setCrystalsFormed,
+  crystalScale,
+  setCrystalScale,
+  solutionTemp, 
+  setSolutionTemp,
+  dishVolume,
+  setDishVolume,
+  dishColor,
+  setDishColor,
+  setIsPouringNow,
+  setTargetPrompt,
+  spawnedItems, 
+  setSpawnedItems 
+}: any) {
   const { viewport } = useThree();
   const draggedItemIdRef = useRef<string | null>(null);
+  const hoveredItemIdRef = useRef<string | null>(null);
   const wasActive = useRef(false);
   const targetPosRef = useRef(new THREE.Vector3());
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  useFrame(() => {
+  // Pouring stream tracking
+  const [streamActive, setStreamActive] = useState(false);
+  const [streamFrom, setStreamFrom] = useState(new THREE.Vector3());
+  const [streamTo, setStreamTo] = useState(new THREE.Vector3());
+  const [streamColor, setStreamColor] = useState('#aaddff');
+  const [currentFlowRate, setCurrentFlowRate] = useState(25);
+
+  const hasPromptedTarget = useRef(false);
+  const hasWarnedOverpour = useRef(false);
+
+  useFrame((_, delta) => {
     const ptr = getPointer();
     const targetX = (ptr.x * 2 - 1) * (viewport.width / 2);
     const targetY = -(ptr.y * 2 - 1) * (viewport.height / 2);
-    targetPosRef.current.lerp(new THREE.Vector3(targetX, targetY, 2), 0.4);
+    targetPosRef.current.lerp(new THREE.Vector3(targetX, targetY, 2), 0.35);
+
+    // Hover detection
+    if (!draggedItemIdRef.current) {
+      let foundHover: string | null = null;
+      let minHoverDist = 2.5;
+
+      spawnedItems.forEach((item: any) => {
+        if (item.id === 'Tripod Burner') return;
+        const dist = new THREE.Vector2(targetX, targetY).distanceTo(new THREE.Vector2(item.x, item.y));
+        if (dist < minHoverDist) {
+          minHoverDist = dist;
+          foundHover = item.id;
+        }
+      });
+
+      if (foundHover !== hoveredItemIdRef.current) {
+        if (foundHover) labAudio.playHoverSound();
+        hoveredItemIdRef.current = foundHover;
+        setHoveredId(foundHover);
+      }
+    }
 
     const grabbed = ptr.active && !wasActive.current;
     const released = !ptr.active && wasActive.current;
 
-    if (grabbed) {
-      let closest: any = null;
-      let minDist = 3.0;
-      spawnedItems.forEach((item: any) => {
-        if (item.id === 'Tripod Burner') return;
-        const dist = new THREE.Vector2(targetX, targetY).distanceTo(new THREE.Vector2(item.x, item.y));
-        if (dist < minDist) {
-          minDist = dist;
-          closest = item;
-        }
-      });
-      if (closest) {
-        draggedItemIdRef.current = closest.id;
-        labAudio.playGrabSound();
-        setSpawnedItems((prev: any) => prev.map((i: any) => i.id === closest.id ? { ...i, isDragging: true } : i));
-      }
+    // Grab item
+    if (grabbed && hoveredItemIdRef.current) {
+      const grabId = hoveredItemIdRef.current;
+      draggedItemIdRef.current = grabId;
+      labAudio.playGrabSound();
+      setSpawnedItems((prev: any) => prev.map((i: any) => (i.id === grabId ? { ...i, isDragging: true } : i)));
     }
 
-    if (ptr.active && draggedItemIdRef.current) {
-      setSpawnedItems((prev: any) => prev.map((i: any) => i.id === draggedItemIdRef.current ? { ...i, x: targetPosRef.current.x, y: targetPosRef.current.y } : i));
-    }
+    const heldId = draggedItemIdRef.current;
+    const tripod = spawnedItems.find((i: any) => i.id === 'Tripod Burner');
 
-    if (released && draggedItemIdRef.current) {
-      const itemId = draggedItemIdRef.current;
-      setSpawnedItems((prev: any) => {
-        const item = prev.find((i: any) => i.id === itemId);
-        if (!item) return prev;
+    // Continuous Pouring / Interaction Logic
+    if (ptr.active && heldId && tripod) {
+      const dishPos = new THREE.Vector3(tripod.x, tripod.y + 1.2, 0);
+      const distToDish = new THREE.Vector2(targetPosRef.current.x, targetPosRef.current.y).distanceTo(
+        new THREE.Vector2(dishPos.x, dishPos.y + 0.8)
+      );
 
-        const tripod = prev.find((i: any) => i.id === 'Tripod Burner');
-        if (tripod) {
-          const distToDish = new THREE.Vector2(item.x, item.y).distanceTo(new THREE.Vector2(tripod.x, tripod.y + 1.2));
-          if (distToDish < 3.2) {
-            const expected = EXPERIMENT_STEPS[activeStep - 1];
-            if (expected && expected.expectedTool === item.id) {
-              labAudio.playPourEffect();
-              
-              if (item.id === 'Distilled Water') {
-                triggerSuccess("Added 50ml distilled water solvent.");
-              } else if (item.id === 'CuSO4 Powder') {
-                triggerSuccess("Added Copper Sulphate powder to form deep blue solution.");
-              } else if (item.id === 'Stirrer') {
-                setSolutionTemp(85);
-                triggerSuccess("Heated and stirred solution to saturation point (85°C).");
-              } else if (item.id === 'Cooling Dish') {
-                setSolutionTemp(22);
-                setCrystalsFormed(true);
-                triggerSuccess("Pure deep-blue CuSO4.5H2O crystals precipitated!", 30);
+      const isOverDish = distToDish < 2.5 && targetPosRef.current.y > dishPos.y + 0.3;
+
+      if (isOverDish) {
+        const tiltDeg = 55;
+        const flow = calculateFlowRate(tiltDeg, 25);
+
+        // Step 2: Continuous Distilled Water Pouring
+        if (heldId === 'Distilled Water' && activeStep === 2) {
+          if (flow > 0) {
+            setStreamActive(true);
+            setStreamFrom(new THREE.Vector3(targetPosRef.current.x - 0.25, targetPosRef.current.y - 0.4, 0));
+            setStreamTo(new THREE.Vector3(dishPos.x, dishPos.y + 0.1, 0));
+            setStreamColor('#aaddff');
+            setCurrentFlowRate(flow);
+            setIsPouringNow(true);
+
+            setDishVolume((prevVol: number) => {
+              const newVol = Math.min(80, prevVol + flow * delta);
+              if (newVol >= 50 && !hasPromptedTarget.current) {
+                hasPromptedTarget.current = true;
+                setTargetPrompt("Target 50ml reached! Release bottle now.");
               }
+              if (newVol >= 65 && !hasWarnedOverpour.current) {
+                hasWarnedOverpour.current = true;
+                triggerMistake("Overfilled dish! Slow crystallization works best with exact 50ml solvent.");
+              }
+              return newVol;
+            });
+            setDishColor('#aaddff');
+          }
+        }
+        // Step 3: Dissolve CuSO4 Powder
+        else if (heldId === 'CuSO4 Powder' && activeStep === 3) {
+          if (flow > 0) {
+            setStreamActive(true);
+            setStreamFrom(new THREE.Vector3(targetPosRef.current.x - 0.2, targetPosRef.current.y - 0.3, 0));
+            setStreamTo(new THREE.Vector3(dishPos.x, dishPos.y + 0.1, 0));
+            setStreamColor('#2563eb');
+            setCurrentFlowRate(flow);
+            setIsPouringNow(true);
 
-              const nextStep = activeStep + 1;
-              setActiveStep(nextStep);
-              setCurrentStep(nextStep);
-              draggedItemIdRef.current = null;
-              return prev.filter((i: any) => i.id !== item.id);
-            } else {
-              triggerMistake(`Incorrect tool! For Step ${activeStep}, you need: ${expected?.expectedTool}`);
+            // Volumetrically blend powder into deep blue solution
+            setDishColor((prevCol: string) => blendLiquidColors(prevCol, 50, '#1d4ed8', flow * delta * 2));
+            
+            if (!hasPromptedTarget.current) {
+              hasPromptedTarget.current = true;
+              setTargetPrompt("CuSO4 dissolving! Release once deep saturated blue.");
             }
           }
         }
-        return prev.map((i: any) => i.id === item.id ? { ...i, isDragging: false, y: -0.6 } : i);
+        // Step 4: Glass Stirrer heating & dissolving
+        else if (heldId === 'Stirrer' && activeStep === 4) {
+          setStreamActive(false);
+          setIsPouringNow(false);
+          setSolutionTemp((prevT: number) => Math.min(85, prevT + 25 * delta));
+          if (solutionTemp >= 80 && !hasPromptedTarget.current) {
+            hasPromptedTarget.current = true;
+            setTargetPrompt("Saturation temperature reached (85°C)! Ready for cooling.");
+          }
+        } else {
+          setStreamActive(false);
+          setIsPouringNow(false);
+        }
+      } else {
+        setStreamActive(false);
+        setIsPouringNow(false);
+      }
+
+      // Update dragging position
+      setSpawnedItems((prev: any) =>
+        prev.map((i: any) =>
+          i.id === heldId ? { ...i, x: targetPosRef.current.x, y: targetPosRef.current.y } : i
+        )
+      );
+    } else {
+      setStreamActive(false);
+      setIsPouringNow(false);
+    }
+
+    // Release Item
+    if (released && heldId) {
+      labAudio.playReleaseSound();
+      setTargetPrompt(null);
+      hasPromptedTarget.current = false;
+      hasWarnedOverpour.current = false;
+
+      setSpawnedItems((prev: any) => {
+        const item = prev.find((i: any) => i.id === heldId);
+        if (!item || !tripod) return prev;
+
+        const dishPos = new THREE.Vector2(tripod.x, tripod.y + 1.2);
+        const distToDish = new THREE.Vector2(item.x, item.y).distanceTo(dishPos);
+
+        if (distToDish < 3.2) {
+          const expected = EXPERIMENT_STEPS[activeStep - 1];
+          if (expected && expected.expectedTool === heldId) {
+            // Step validation
+            if (heldId === 'Distilled Water') {
+              if (dishVolume >= 40) {
+                triggerSuccess(`Added ${dishVolume.toFixed(1)}ml Distilled Water solvent.`, 20);
+                setActiveStep(3);
+                setCurrentStep(3);
+                draggedItemIdRef.current = null;
+                return prev.filter((i: any) => i.id !== heldId);
+              } else {
+                triggerMistake("Not enough water! Please pour at least 45-50ml.");
+              }
+            } else if (heldId === 'CuSO4 Powder') {
+              setDishColor('#1d4ed8');
+              triggerSuccess("Copper Sulphate dissolved to full saturation point.", 20);
+              setActiveStep(4);
+              setCurrentStep(4);
+              draggedItemIdRef.current = null;
+              return prev.filter((i: any) => i.id !== heldId);
+            } else if (heldId === 'Stirrer') {
+              setSolutionTemp(85);
+              triggerSuccess("Stirred & heated solution to 85°C crystallization threshold.", 20);
+              setActiveStep(5);
+              setCurrentStep(5);
+              draggedItemIdRef.current = null;
+              return prev.filter((i: any) => i.id !== heldId);
+            } else if (heldId === 'Cooling Dish') {
+              setSolutionTemp(22);
+              setCrystalsFormed(true);
+              triggerSuccess("Undisturbed cooling completed: Pure blue CuSO4.5H2O crystals precipitated!", 30);
+              setActiveStep(6);
+              setCurrentStep(6);
+              draggedItemIdRef.current = null;
+              return prev.filter((i: any) => i.id !== heldId);
+            }
+          } else {
+            triggerMistake(`Incorrect tool! For Step ${activeStep}, you need: ${expected?.expectedTool}`);
+          }
+        }
+        return prev.map((i: any) => (i.id === heldId ? { ...i, isDragging: false, y: -0.6 } : i));
       });
       draggedItemIdRef.current = null;
     }
+
+    // Smooth crystal growth animation
+    if (crystalsFormed && crystalScale < 1) {
+      setCrystalScale((s: number) => Math.min(1, s + delta * 0.8));
+    }
+
     wasActive.current = ptr.active;
   });
 
@@ -378,6 +570,15 @@ function CrystallizationScene({ getPointer, activeStep, setActiveStep, setCurren
         <boxGeometry args={[14, 0.4, 4.5]} />
         <meshStandardMaterial color="#121324" roughness={0.3} metalness={0.4} />
       </mesh>
+
+      {/* Dynamic Pouring Stream */}
+      <PourStreamMesh
+        from={streamFrom}
+        to={streamTo}
+        color={streamColor}
+        active={streamActive}
+        flowRate={currentFlowRate}
+      />
 
       {spawnedItems.map((item: any) => (
         <group key={item.id} position={[item.x, item.y, item.isDragging ? 1.5 : 0]}>
@@ -402,23 +603,49 @@ function CrystallizationScene({ getPointer, activeStep, setActiveStep, setCurren
                 <cylinderGeometry args={[0.9, 0.6, 0.4, 32]} />
                 <meshStandardMaterial color="#f8fafc" roughness={0.2} />
               </mesh>
-              {/* Solution / Crystals */}
-              <mesh position={[0, 1.3, 0]}>
-                <cylinderGeometry args={[0.8, 0.5, 0.2, 32]} />
-                <meshStandardMaterial color="#2563eb" transparent opacity={0.85} />
-              </mesh>
+              
+              {/* Dynamic Liquid Mesh in Dish */}
+              {dishVolume > 0 && (
+                <LiquidMesh
+                  position={[0, 1.1 + (dishVolume / 80) * 0.15, 0]}
+                  radius={0.55 + (dishVolume / 80) * 0.25}
+                  height={(dishVolume / 80) * 0.25}
+                  color={dishColor}
+                  opacity={0.88}
+                />
+              )}
+
+              {/* Bunsen Burner Flame when heating */}
+              {activeStep === 4 && (
+                <group position={[0, 0.4, 0]}>
+                  <mesh>
+                    <coneGeometry args={[0.2, 0.6, 16]} />
+                    <meshBasicMaterial color="#38bdf8" transparent opacity={0.8} />
+                  </mesh>
+                  <mesh position={[0, 0.1, 0]}>
+                    <coneGeometry args={[0.1, 0.4, 16]} />
+                    <meshBasicMaterial color="#fbbf24" transparent opacity={0.9} />
+                  </mesh>
+                </group>
+              )}
+
+              {/* Precipitated Crystals */}
               {crystalsFormed && (
-                <group position={[0, 1.4, 0]}>
+                <group position={[0, 1.35, 0]} scale={[crystalScale, crystalScale, crystalScale]}>
                   <mesh position={[-0.3, 0.1, 0.2]} rotation={[0.4, 0.5, 0]}>
-                    <octahedronGeometry args={[0.2]} />
-                    <meshStandardMaterial color="#1d4ed8" roughness={0.1} metalness={0.3} />
+                    <octahedronGeometry args={[0.22]} />
+                    <meshStandardMaterial color="#1d4ed8" roughness={0.1} metalness={0.4} emissive="#1d4ed8" emissiveIntensity={0.2} />
                   </mesh>
                   <mesh position={[0.3, 0.1, -0.2]} rotation={[-0.2, 0.3, 0.5]}>
-                    <octahedronGeometry args={[0.25]} />
-                    <meshStandardMaterial color="#2563eb" roughness={0.1} metalness={0.3} />
+                    <octahedronGeometry args={[0.28]} />
+                    <meshStandardMaterial color="#2563eb" roughness={0.1} metalness={0.4} emissive="#2563eb" emissiveIntensity={0.2} />
                   </mesh>
-                  <Text position={[0, 1, 0]} fontSize={0.3} color="#60a5fa" anchorX="center" outlineWidth={0.02}>
-                    Pure Crystals Formed!
+                  <mesh position={[0.0, 0.15, 0.1]} rotation={[0.1, -0.4, 0.2]}>
+                    <octahedronGeometry args={[0.25]} />
+                    <meshStandardMaterial color="#3b82f6" roughness={0.1} metalness={0.4} emissive="#3b82f6" emissiveIntensity={0.2} />
+                  </mesh>
+                  <Text position={[0, 1.0, 0]} fontSize={0.28} color="#60a5fa" anchorX="center" outlineWidth={0.02}>
+                    Pure Triclinic Crystals Formed!
                   </Text>
                 </group>
               )}
@@ -426,37 +653,74 @@ function CrystallizationScene({ getPointer, activeStep, setActiveStep, setCurren
           )}
 
           {item.type === 'Bottle' && (
-            <group position={[0, 0.3, 0]}>
+            <group 
+              position={[0, 0.3, 0]}
+              rotation={item.isDragging ? [0, 0, -0.8] : [0, 0, 0]}
+              scale={hoveredId === item.id ? [1.1, 1.1, 1.1] : [1, 1, 1]}
+            >
               <mesh>
                 <cylinderGeometry args={[0.5, 0.5, 1.2, 24]} />
-                <meshStandardMaterial color="#aaddff" roughness={0.2} transparent opacity={0.8} />
+                <meshStandardMaterial 
+                  color="#aaddff" 
+                  roughness={0.2} 
+                  transparent 
+                  opacity={0.8}
+                  emissive={hoveredId === item.id ? '#38bdf8' : '#000000'}
+                  emissiveIntensity={hoveredId === item.id ? 0.4 : 0}
+                />
               </mesh>
               <Text position={[0, 0.1, 0.52]} fontSize={0.16} color="#ffffff" anchorX="center">H2O</Text>
             </group>
           )}
 
           {item.type === 'Powder' && (
-            <group position={[0, 0.3, 0]}>
+            <group 
+              position={[0, 0.3, 0]}
+              rotation={item.isDragging ? [0, 0, -0.7] : [0, 0, 0]}
+              scale={hoveredId === item.id ? [1.1, 1.1, 1.1] : [1, 1, 1]}
+            >
               <mesh>
                 <boxGeometry args={[0.8, 0.8, 0.8]} />
-                <meshStandardMaterial color="#2563eb" roughness={0.9} />
+                <meshStandardMaterial 
+                  color="#2563eb" 
+                  roughness={0.9}
+                  emissive={hoveredId === item.id ? '#60a5fa' : '#000000'}
+                  emissiveIntensity={hoveredId === item.id ? 0.3 : 0}
+                />
               </mesh>
               <Text position={[0, 0, 0.42]} fontSize={0.16} color="#ffffff" anchorX="center">CuSO4</Text>
             </group>
           )}
 
           {item.type === 'Rod' && (
-            <mesh position={[0, 0.5, 0]} rotation={[0, 0, 0.2]}>
+            <mesh 
+              position={[0, 0.5, 0]} 
+              rotation={item.isDragging ? [0, 0, 0.1] : [0, 0, 0.2]}
+              scale={hoveredId === item.id ? [1.15, 1.15, 1.15] : [1, 1, 1]}
+            >
               <cylinderGeometry args={[0.04, 0.04, 1.8, 16]} />
-              <meshStandardMaterial color="#ffffff" transparent opacity={0.6} />
+              <meshStandardMaterial 
+                color="#ffffff" 
+                transparent 
+                opacity={0.7}
+                emissive={hoveredId === item.id ? '#ffffff' : '#000000'}
+                emissiveIntensity={hoveredId === item.id ? 0.5 : 0}
+              />
             </mesh>
           )}
 
           {item.type === 'Dish' && (
-            <group position={[0, 0.2, 0]}>
+            <group 
+              position={[0, 0.2, 0]}
+              scale={hoveredId === item.id ? [1.1, 1.1, 1.1] : [1, 1, 1]}
+            >
               <mesh>
                 <cylinderGeometry args={[0.8, 0.6, 0.3, 24]} />
-                <meshStandardMaterial color="#e2e8f0" />
+                <meshStandardMaterial 
+                  color="#e2e8f0"
+                  emissive={hoveredId === item.id ? '#93c5fd' : '#000000'}
+                  emissiveIntensity={hoveredId === item.id ? 0.3 : 0}
+                />
               </mesh>
               <Text position={[0, 0.4, 0]} fontSize={0.18} color="#ffffff" anchorX="center">Cooler</Text>
             </group>

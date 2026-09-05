@@ -364,7 +364,7 @@ app.post('/api/mentor/ask-voice', async (req: Request, res: Response) => {
         const formData = new FormData();
         const blob = new Blob([audioBuffer], { type: 'audio/webm' });
         formData.append('file', blob, 'audio.webm');
-        formData.append('model_id', 'scribe_v1');
+        formData.append('model_id', 'scribe_v2');
 
         const sttRes = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
           method: 'POST',
@@ -375,9 +375,12 @@ app.post('/api/mentor/ask-voice', async (req: Request, res: Response) => {
         if (sttRes.ok) {
           const sttData = await sttRes.json();
           if (sttData.text) transcript = sttData.text;
+        } else {
+          const rawErr = await sttRes.text();
+          console.error(`[ElevenLabs STT Error] HTTP ${sttRes.status}:`, rawErr);
         }
       } catch (sttErr) {
-        console.warn('ElevenLabs STT error:', sttErr);
+        console.error('[ElevenLabs STT Exception]:', sttErr);
       }
     }
 

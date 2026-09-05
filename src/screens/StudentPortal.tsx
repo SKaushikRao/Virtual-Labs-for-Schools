@@ -27,16 +27,16 @@ export function StudentPortal() {
       color: 'text-cyan-400', 
       border: 'hover:border-cyan-500/50',
       badge: 'border-cyan-500/40 text-cyan-300 bg-cyan-500/20',
-      desc: "Ohm's law circuits, simple pendulum mechanics & glass slab refraction.",
+      desc: 'Simple pendulum harmonic mechanics, string length variation & time period verification.',
       available: true 
     },
     { 
       name: 'Biology', 
       icon: Dna, 
-      color: 'text-emerald-400', 
-      border: 'hover:border-emerald-500/50',
-      badge: 'border-emerald-500/40 text-emerald-300 bg-emerald-500/20',
-      desc: 'Onion peel microscopy, leaf stomata & 3D cardiovascular anatomy.',
+      color: 'text-rose-400', 
+      border: 'hover:border-rose-500/50',
+      badge: 'border-rose-500/40 text-rose-300 bg-rose-500/20',
+      desc: '3D cardiovascular anatomy, 4-chamber physiology & systemic double circulation with dual-hand gestures.',
       available: true 
     },
   ];

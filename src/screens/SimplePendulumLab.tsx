@@ -305,100 +305,150 @@ export function SimplePendulumLab() {
 }
 
 function PendulumScene({ getPointer, activeStep, setActiveStep, setCurrentStep, triggerSuccess, triggerMistake, pendulumLength, setPendulumLength, isOscillating, setIsOscillating, setStopwatchRunning, spawnedItems, setSpawnedItems }: any) {
-  const { viewport } = useThree();
+  const { viewport, camera, raycaster } = useThree();
   const draggedItemIdRef = useRef<string | null>(null);
+  const hoveredItemIdRef = useRef<string | null>(null);
   const wasActive = useRef(false);
   const targetPosRef = useRef(new THREE.Vector3());
   const pendulumArmRef = useRef<THREE.Group>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const isDraggingHangingBob = useRef(false);
 
   useFrame(({ clock }) => {
     const ptr = getPointer();
-    const targetX = (ptr.x * 2 - 1) * (viewport.width / 2);
-    const targetY = -(ptr.y * 2 - 1) * (viewport.height / 2);
-    targetPosRef.current.lerp(new THREE.Vector3(targetX, targetY, 2), 0.4);
+    const ndcX = ptr.x * 2 - 1;
+    const ndcY = -(ptr.y * 2 - 1);
+    const targetX = ndcX * (viewport.width / 2);
+    const targetY = ndcY * (viewport.height / 2);
+    targetPosRef.current.lerp(new THREE.Vector3(targetX, targetY, 2), 0.35);
 
-    // Dynamic oscillation physics
-    if (isOscillating && pendulumArmRef.current) {
+    // Oscillation physics
+    if (isOscillating && pendulumArmRef.current && !isDraggingHangingBob.current) {
       const omega = Math.sqrt(9.8 / pendulumLength);
-      const angle = 0.25 * Math.sin(clock.getElapsedTime() * omega);
+      const angle = 0.28 * Math.sin(clock.getElapsedTime() * omega);
       pendulumArmRef.current.rotation.z = angle;
+    }
+
+    // Raycast / Proximity Hover detection when not dragging
+    if (!draggedItemIdRef.current && !isDraggingHangingBob.current) {
+      let foundHover: string | null = null;
+      let minHoverDist = 2.4;
+
+      // Check bench items
+      spawnedItems.forEach((item: any) => {
+        if (item.id === 'Pendulum Stand') return;
+        const dist = new THREE.Vector2(targetX, targetY).distanceTo(new THREE.Vector2(item.x, item.y));
+        if (dist < minHoverDist) {
+          minHoverDist = dist;
+          foundHover = item.id;
+        }
+      });
+
+      // Check hanging bob for step 3 displacement gesture
+      if (activeStep === 3 && spawnedItems.some((i: any) => i.id === 'Pendulum Stand')) {
+        const bobWorldPos = new THREE.Vector2(0.2, 3.4 - 0.6 - pendulumLength * 2.5);
+        const distToBob = new THREE.Vector2(targetX, targetY).distanceTo(bobWorldPos);
+        if (distToBob < 2.0) {
+          foundHover = 'HangingBob';
+        }
+      }
+
+      if (foundHover !== hoveredItemIdRef.current) {
+        if (foundHover) labAudio.playHoverSound();
+        hoveredItemIdRef.current = foundHover;
+        setHoveredId(foundHover);
+      }
     }
 
     const grabbed = ptr.active && !wasActive.current;
     const released = !ptr.active && wasActive.current;
 
+    // Grab transition
     if (grabbed) {
-      // If clicking near the bob while placed, initiate oscillation gesture
-      if (activeStep === 3) {
+      if (hoveredItemIdRef.current === 'HangingBob' || activeStep === 3) {
         const stand = spawnedItems.find((i: any) => i.id === 'Pendulum Stand');
         if (stand) {
-          setIsOscillating(true);
-          triggerSuccess("Displaced bob! Simple harmonic oscillation initiated.");
-          setActiveStep(4);
-          setCurrentStep(4);
+          isDraggingHangingBob.current = true;
+          labAudio.playGrabSound();
         }
       }
 
-      let closest: any = null;
-      let minDist = 2.8;
-      spawnedItems.forEach((item: any) => {
-        if (item.id === 'Pendulum Stand') return;
-        const dist = new THREE.Vector2(targetX, targetY).distanceTo(new THREE.Vector2(item.x, item.y));
-        if (dist < minDist) {
-          minDist = dist;
-          closest = item;
-        }
-      });
-      if (closest) {
-        draggedItemIdRef.current = closest.id;
+      if (hoveredItemIdRef.current && hoveredItemIdRef.current !== 'HangingBob') {
+        const grabId = hoveredItemIdRef.current;
+        draggedItemIdRef.current = grabId;
         labAudio.playGrabSound();
-        setSpawnedItems((prev: any) => prev.map((i: any) => i.id === closest.id ? { ...i, isDragging: true } : i));
+        setSpawnedItems((prev: any) => prev.map((i: any) => i.id === grabId ? { ...i, isDragging: true } : i));
       }
     }
 
+    // Dragging hanging bob to displace
+    if (ptr.active && isDraggingHangingBob.current && pendulumArmRef.current) {
+      const clampPivotX = 0.2;
+      const dx = targetPosRef.current.x - clampPivotX;
+      const angle = Math.max(-0.45, Math.min(0.45, -dx * 0.25));
+      pendulumArmRef.current.rotation.z = angle;
+    }
+
+    // Dragging regular bench items (lerped follow)
     if (ptr.active && draggedItemIdRef.current) {
       setSpawnedItems((prev: any) => prev.map((i: any) => i.id === draggedItemIdRef.current ? { ...i, x: targetPosRef.current.x, y: targetPosRef.current.y } : i));
     }
 
-    if (released && draggedItemIdRef.current) {
-      const itemId = draggedItemIdRef.current;
-      setSpawnedItems((prev: any) => {
-        const item = prev.find((i: any) => i.id === itemId);
-        if (!item) return prev;
+    // Release transition
+    if (released) {
+      if (isDraggingHangingBob.current) {
+        isDraggingHangingBob.current = false;
+        setIsOscillating(true);
+        labAudio.playReleaseSound();
+        triggerSuccess("Displaced bob released! Simple harmonic oscillation initiated.");
+        setActiveStep(4);
+        setCurrentStep(4);
+      }
 
-        const stand = prev.find((i: any) => i.id === 'Pendulum Stand');
-        if (stand) {
-          const distToStand = new THREE.Vector2(item.x, item.y).distanceTo(new THREE.Vector2(stand.x, stand.y + 1));
-          if (distToStand < 3) {
-            const expected = EXPERIMENT_STEPS[activeStep - 1];
-            if (expected && expected.expectedTool === item.id) {
-              labAudio.playPourEffect();
+      if (draggedItemIdRef.current) {
+        const itemId = draggedItemIdRef.current;
+        setSpawnedItems((prev: any) => {
+          const item = prev.find((i: any) => i.id === itemId);
+          if (!item) return prev;
 
-              if (item.id === 'Bob (50cm)') {
-                setPendulumLength(0.5);
-                triggerSuccess("50cm String & Brass Bob attached to clamp.");
-              } else if (item.id === 'Stopwatch') {
-                setStopwatchRunning(true);
-                triggerSuccess("Stopwatch running! 10 Oscillations = 14.2s (Period T = 1.42s).");
-              } else if (item.id === 'Bob (80cm)') {
-                setPendulumLength(0.8);
-                triggerSuccess("Changed length to 80cm! Measured Period T = 1.80s. Relationship T ∝ √L verified!");
+          const stand = prev.find((i: any) => i.id === 'Pendulum Stand');
+          if (stand) {
+            const distToStand = new THREE.Vector2(item.x, item.y).distanceTo(new THREE.Vector2(stand.x, stand.y + 1));
+            if (distToStand < 3.2) {
+              const expected = EXPERIMENT_STEPS[activeStep - 1];
+              if (expected && expected.expectedTool === item.id) {
+                labAudio.playPourEffect();
+
+                if (item.id === 'Bob (50cm)') {
+                  setPendulumLength(0.5);
+                  triggerSuccess("50cm String & Brass Bob attached to clamp.");
+                } else if (item.id === 'Stopwatch') {
+                  setStopwatchRunning(true);
+                  triggerSuccess("Stopwatch running! 10 Oscillations = 14.2s (Period T = 1.42s).");
+                } else if (item.id === 'Bob (80cm)') {
+                  setPendulumLength(0.8);
+                  triggerSuccess("Changed length to 80cm! Measured Period T = 1.80s. Relationship T ∝ √L verified!");
+                }
+
+                const nextStep = activeStep + 1;
+                setActiveStep(nextStep);
+                setCurrentStep(nextStep);
+                draggedItemIdRef.current = null;
+                hoveredItemIdRef.current = null;
+                setHoveredId(null);
+                return prev.filter((i: any) => i.id !== item.id);
+              } else {
+                triggerMistake(`Invalid tool for Step ${activeStep}! Needed: ${expected?.expectedTool}`);
               }
-
-              const nextStep = activeStep + 1;
-              setActiveStep(nextStep);
-              setCurrentStep(nextStep);
-              draggedItemIdRef.current = null;
-              return prev.filter((i: any) => i.id !== item.id);
-            } else {
-              triggerMistake(`Invalid tool for Step ${activeStep}! Needed: ${expected?.expectedTool}`);
             }
           }
-        }
-        return prev.map((i: any) => i.id === item.id ? { ...i, isDragging: false, y: -0.6 } : i);
-      });
-      draggedItemIdRef.current = null;
+          labAudio.playReleaseSound();
+          return prev.map((i: any) => i.id === item.id ? { ...i, isDragging: false, y: -0.6 } : i);
+        });
+        draggedItemIdRef.current = null;
+      }
     }
+
     wasActive.current = ptr.active;
   });
 
@@ -433,40 +483,81 @@ function PendulumScene({ getPointer, activeStep, setActiveStep, setCurrentStep, 
             {/* String */}
             <mesh position={[0, -(pendulumLength * 2.5) / 2, 0]}>
               <cylinderGeometry args={[0.015, 0.015, pendulumLength * 2.5, 8]} />
-              <meshStandardMaterial color="#ffffff" />
+              <meshStandardMaterial color="#ffffff" emissive="#38bdf8" emissiveIntensity={0.2} />
             </mesh>
             {/* Brass Bob */}
             <mesh position={[0, -(pendulumLength * 2.5), 0]}>
-              <sphereGeometry args={[0.3, 24, 24]} />
-              <meshStandardMaterial color="#eab308" metalness={0.9} roughness={0.2} />
+              <sphereGeometry args={[0.32, 24, 24]} />
+              <meshStandardMaterial 
+                color="#facc15" 
+                metalness={0.9} 
+                roughness={0.15} 
+                emissive={hoveredId === 'HangingBob' ? '#00f2ff' : '#000000'}
+                emissiveIntensity={hoveredId === 'HangingBob' ? 0.6 : 0}
+              />
+            </mesh>
+            {/* Invisible large proxy target for easy bob grab */}
+            <mesh position={[0, -(pendulumLength * 2.5), 0]} visible={false}>
+              <sphereGeometry args={[0.8, 8, 8]} />
+              <meshBasicMaterial transparent opacity={0} />
             </mesh>
           </group>
         </group>
       )}
 
-      {spawnedItems.map((item: any) => (
-        <group key={item.id} position={[item.x, item.y, item.isDragging ? 1.5 : 0]}>
-          {item.type === 'Bob' && (
-            <group position={[0, 0.3, 0]}>
-              <mesh>
-                <sphereGeometry args={[0.35, 16, 16]} />
-                <meshStandardMaterial color={item.color} metalness={0.8} />
-              </mesh>
-              <Text position={[0, 0.5, 0]} fontSize={0.2} color="#ffffff" anchorX="center">{item.name}</Text>
-            </group>
-          )}
+      {/* Spawned Items with Hover Highlights and Proxies */}
+      {spawnedItems.map((item: any) => {
+        const isHovered = hoveredId === item.id;
+        const scale = item.isDragging ? 1.15 : isHovered ? 1.08 : 1.0;
 
-          {item.type === 'Tool' && (
-            <group position={[0, 0.3, 0]}>
-              <mesh>
-                <boxGeometry args={[0.8, 1, 0.3]} />
-                <meshStandardMaterial color="#0284c7" />
-              </mesh>
-              <Text position={[0, 0.1, 0.16]} fontSize={0.16} color="#ffffff" anchorX="center">Stopwatch</Text>
-            </group>
-          )}
-        </group>
-      ))}
+        return (
+          <group 
+            key={item.id} 
+            position={[item.x, item.y, item.isDragging ? 1.8 : 0]} 
+            scale={[scale, scale, scale]}
+          >
+            {item.type === 'Bob' && (
+              <group position={[0, 0.3, 0]}>
+                <mesh>
+                  <sphereGeometry args={[0.38, 20, 20]} />
+                  <meshStandardMaterial 
+                    color={item.color} 
+                    metalness={0.85} 
+                    roughness={0.2}
+                    emissive={isHovered ? '#00f2ff' : '#000000'}
+                    emissiveIntensity={isHovered ? 0.5 : 0}
+                  />
+                </mesh>
+                {/* Proxy target for easy grabbing */}
+                <mesh visible={false}>
+                  <sphereGeometry args={[0.9, 8, 8]} />
+                  <meshBasicMaterial transparent opacity={0} />
+                </mesh>
+                <Text position={[0, 0.55, 0]} fontSize={0.22} color="#ffffff" anchorX="center" outlineWidth={0.02} outlineColor="#000000">{item.name}</Text>
+              </group>
+            )}
+
+            {item.type === 'Tool' && (
+              <group position={[0, 0.3, 0]}>
+                <mesh>
+                  <boxGeometry args={[0.9, 1.1, 0.35]} />
+                  <meshStandardMaterial 
+                    color="#0284c7" 
+                    emissive={isHovered ? '#38bdf8' : '#000000'}
+                    emissiveIntensity={isHovered ? 0.5 : 0}
+                  />
+                </mesh>
+                {/* Proxy target */}
+                <mesh visible={false}>
+                  <boxGeometry args={[1.4, 1.6, 0.8]} />
+                  <meshBasicMaterial transparent opacity={0} />
+                </mesh>
+                <Text position={[0, 0.1, 0.2]} fontSize={0.18} color="#ffffff" anchorX="center" outlineWidth={0.02} outlineColor="#000000">Stopwatch</Text>
+              </group>
+            )}
+          </group>
+        );
+      })}
     </>
   );
 }

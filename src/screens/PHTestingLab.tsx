@@ -13,13 +13,14 @@ import { LabTopBar } from '../components/ui/LabTopBar';
 import { GestureCursor } from '../components/ui/GestureCursor';
 import { AIMentorPanel } from '../components/mentor/AIMentorPanel';
 import { GestureTutorial } from '../components/GestureTutorial';
+import { PourStreamMesh, LiquidMesh, calculateFlowRate, blendLiquidColors } from '../components/fluids/FluidSystem';
 
 const EXPERIMENT_STEPS = [
   { id: 1, text: "Place the Multi-Well Spot Plate on the bench.", expectedTool: "Spot Plate" },
   { id: 2, text: "Add Lemon Juice to Well #1 (Acidic).", expectedTool: "Lemon Juice" },
   { id: 3, text: "Add Distilled Water to Well #2 (Neutral).", expectedTool: "Dist. Water" },
   { id: 4, text: "Add Soap Solution to Well #3 (Mild Base).", expectedTool: "Soap Solution" },
-  { id: 5, text: "Add Universal Indicator to all wells to record pH spectrum.", expectedTool: "Indicator Dropper" }
+  { id: 5, text: "Add Universal Indicator to observe the pH spectrum.", expectedTool: "Indicator Dropper" }
 ];
 
 const INVENTORY_ITEMS = [
@@ -46,8 +47,12 @@ export function PHTestingLab() {
   const [hoveredItem, setHoveredItem] = useState<typeof INVENTORY_ITEMS[0] | null>(null);
 
   // 3 Wells: [lemon, water, soap]
-  const [wellColors, setWellColors] = useState<string[]>(['#ffffff', '#ffffff', '#ffffff']);
+  const [wellVolumes, setWellVolumes] = useState<number[]>([0, 0, 0]); // ml
+  const [wellColors, setWellColors] = useState<string[]>(['#fef08a', '#bae6fd', '#c7d2fe']);
   const [wellLabels, setWellLabels] = useState<string[]>(['Empty', 'Empty', 'Empty']);
+  const [indicatorAdded, setIndicatorAdded] = useState(false);
+  const [isPouringNow, setIsPouringNow] = useState(false);
+  const [targetPrompt, setTargetPrompt] = useState<string | null>(null);
 
   const [logs, setLogs] = useState<{time: string, msg: string, type: 'info'|'warn'|'success'}[]>([
     { time: new Date().toLocaleTimeString('en-US', { hour12: false }), msg: 'pH Universal Indicator Lab Initialized.', type: 'info' }
@@ -99,7 +104,7 @@ export function PHTestingLab() {
       const count = spawnedItemsRef.current.filter(i => i.id !== 'Spot Plate').length;
       const xPos = -4 + count * 2.2;
       setSpawnedItems(prev => [...prev, { ...item, x: xPos, y: -0.6, isDragging: false }]);
-      addLog(`Placed ${item.name} on bench.`, "info");
+      addLog(`Placed ${item.name} on bench. Drag & position over the well to dispense.`, "info");
     }
   };
 
@@ -185,6 +190,7 @@ export function PHTestingLab() {
         <div className="absolute inset-0 z-0 flex items-center justify-center bg-transparent pointer-events-none">
           <Canvas camera={{ position: [0, 2, 7.5], fov: 45 }} style={{ pointerEvents: 'none' }}>
             <ambientLight intensity={0.6} />
+            <directionalLight position={[5, 8, 5]} intensity={1.2} />
             <pointLight position={[6, 8, 6]} intensity={1.5} color="#00f2ff" />
             <pointLight position={[-6, 6, -3]} intensity={1.2} color="#4e44ff" />
 
@@ -195,10 +201,16 @@ export function PHTestingLab() {
               setCurrentStep={setCurrentStep}
               triggerSuccess={triggerSuccess}
               triggerMistake={triggerMistake}
+              wellVolumes={wellVolumes}
+              setWellVolumes={setWellVolumes}
               wellColors={wellColors}
               setWellColors={setWellColors}
               wellLabels={wellLabels}
               setWellLabels={setWellLabels}
+              indicatorAdded={indicatorAdded}
+              setIndicatorAdded={setIndicatorAdded}
+              setIsPouringNow={setIsPouringNow}
+              setTargetPrompt={setTargetPrompt}
               spawnedItems={spawnedItems}
               setSpawnedItems={setSpawnedItems}
             />
@@ -206,11 +218,24 @@ export function PHTestingLab() {
           </Canvas>
 
           {/* Action indicator */}
-          <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-6 py-2 rounded-full border border-white/20 flex items-center gap-3 pointer-events-none">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_10px_#10b981]" />
-            <span className="text-xs font-mono font-medium text-white/90">
-              {activeStep <= 5 ? `Step ${activeStep}: ${EXPERIMENT_STEPS[activeStep-1].text}` : "Universal pH Spectrum Verified!"}
-            </span>
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none">
+            <div className="bg-black/60 backdrop-blur-md px-6 py-2 rounded-full border border-white/20 flex items-center gap-3">
+              <div className={cn("w-2.5 h-2.5 rounded-full animate-pulse", isPouringNow ? "bg-cyan-400 shadow-[0_0_12px_#38bdf8]" : "bg-emerald-400 shadow-[0_0_10px_#10b981]")} />
+              <span className="text-xs font-mono font-medium text-white/90">
+                {activeStep <= 5 ? `Step ${activeStep}: ${EXPERIMENT_STEPS[activeStep-1].text}` : "Universal pH Spectrum Verified!"}
+              </span>
+            </div>
+
+            {targetPrompt && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="bg-emerald-500/20 backdrop-blur-md border border-emerald-400/50 px-4 py-1.5 rounded-full text-[11px] font-mono font-semibold text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+              >
+                {targetPrompt}
+              </motion.div>
+            )}
           </div>
 
           <video ref={videoRef} playsInline muted className="absolute w-36 h-28 top-20 right-6 object-cover rounded-2xl border border-white/20 opacity-40 z-10 scale-x-[-1] pointer-events-none" />
@@ -221,17 +246,17 @@ export function PHTestingLab() {
           <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-5 shrink-0 pointer-events-auto shadow-2xl">
              <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-3 font-mono">Universal pH Scale</h3>
              <div className="space-y-2 mb-3 font-mono text-xs">
-                <div className="flex items-center justify-between p-2 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300">
+                <div className={cn("flex items-center justify-between p-2 rounded-lg border transition-all", indicatorAdded ? "bg-red-500/20 border-red-500/40 text-red-300 shadow-[0_0_15px_rgba(239,68,68,0.2)]" : "bg-white/5 border-white/10 text-white/70")}>
                   <span>Well 1 (Lemon)</span>
-                  <span className="font-bold">pH ~2.2</span>
+                  <span className="font-bold">{indicatorAdded ? 'pH ~2.2 (Acid)' : wellVolumes[0] > 0 ? `${wellVolumes[0].toFixed(1)}ml` : 'Empty'}</span>
                 </div>
-                <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-300">
+                <div className={cn("flex items-center justify-between p-2 rounded-lg border transition-all", indicatorAdded ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.2)]" : "bg-white/5 border-white/10 text-white/70")}>
                   <span>Well 2 (Water)</span>
-                  <span className="font-bold">pH 7.0</span>
+                  <span className="font-bold">{indicatorAdded ? 'pH 7.0 (Neutral)' : wellVolumes[1] > 0 ? `${wellVolumes[1].toFixed(1)}ml` : 'Empty'}</span>
                 </div>
-                <div className="flex items-center justify-between p-2 rounded-lg bg-blue-500/20 border border-blue-500/30 text-blue-300">
+                <div className={cn("flex items-center justify-between p-2 rounded-lg border transition-all", indicatorAdded ? "bg-blue-500/20 border-blue-500/40 text-blue-300 shadow-[0_0_15px_rgba(59,130,246,0.2)]" : "bg-white/5 border-white/10 text-white/70")}>
                   <span>Well 3 (Soap)</span>
-                  <span className="font-bold">pH ~9.0</span>
+                  <span className="font-bold">{indicatorAdded ? 'pH ~9.0 (Base)' : wellVolumes[2] > 0 ? `${wellVolumes[2].toFixed(1)}ml` : 'Empty'}</span>
                 </div>
              </div>
           </div>
@@ -272,7 +297,10 @@ export function PHTestingLab() {
                  data-item-color={item.color}
                  data-item-name={item.name}
                  onClick={handleInventoryClick}
-                 onMouseEnter={() => setHoveredItem(item)}
+                 onMouseEnter={() => {
+                   setHoveredItem(item);
+                   labAudio.playHoverSound();
+                 }}
                  onMouseLeave={() => setHoveredItem(null)}
                  className="min-w-[100px] h-28 bg-white/5 border border-white/10 rounded-2xl flex flex-col items-center justify-center gap-1.5 hover:bg-white/10 transition-all cursor-pointer group hover:-translate-y-3 hover:border-purple-400/60 select-none"
               >
@@ -286,88 +314,250 @@ export function PHTestingLab() {
   );
 }
 
-function PHScene({ getPointer, activeStep, setActiveStep, setCurrentStep, triggerSuccess, triggerMistake, wellColors, setWellColors, wellLabels, setWellLabels, spawnedItems, setSpawnedItems }: any) {
+function PHScene({ 
+  getPointer, 
+  activeStep, 
+  setActiveStep, 
+  setCurrentStep, 
+  triggerSuccess, 
+  triggerMistake, 
+  wellVolumes,
+  setWellVolumes,
+  wellColors, 
+  setWellColors, 
+  wellLabels, 
+  setWellLabels, 
+  indicatorAdded,
+  setIndicatorAdded,
+  setIsPouringNow,
+  setTargetPrompt,
+  spawnedItems, 
+  setSpawnedItems 
+}: any) {
   const { viewport } = useThree();
   const draggedItemIdRef = useRef<string | null>(null);
+  const hoveredItemIdRef = useRef<string | null>(null);
   const wasActive = useRef(false);
   const targetPosRef = useRef(new THREE.Vector3());
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  useFrame(() => {
+  // Pouring stream tracking
+  const [streamActive, setStreamActive] = useState(false);
+  const [streamFrom, setStreamFrom] = useState(new THREE.Vector3());
+  const [streamTo, setStreamTo] = useState(new THREE.Vector3());
+  const [streamColor, setStreamColor] = useState('#ffffff');
+  const [currentFlowRate, setCurrentFlowRate] = useState(15);
+
+  const hasPromptedTarget = useRef(false);
+
+  // Well x positions relative to plate: -1.6, 0, 1.6
+  const wellPositions = [-1.6, 0, 1.6];
+
+  useFrame((_, delta) => {
     const ptr = getPointer();
     const targetX = (ptr.x * 2 - 1) * (viewport.width / 2);
     const targetY = -(ptr.y * 2 - 1) * (viewport.height / 2);
-    targetPosRef.current.lerp(new THREE.Vector3(targetX, targetY, 2), 0.4);
+    targetPosRef.current.lerp(new THREE.Vector3(targetX, targetY, 2), 0.35);
+
+    // Hover detection
+    if (!draggedItemIdRef.current) {
+      let foundHover: string | null = null;
+      let minHoverDist = 2.5;
+
+      spawnedItems.forEach((item: any) => {
+        if (item.id === 'Spot Plate') return;
+        const dist = new THREE.Vector2(targetX, targetY).distanceTo(new THREE.Vector2(item.x, item.y));
+        if (dist < minHoverDist) {
+          minHoverDist = dist;
+          foundHover = item.id;
+        }
+      });
+
+      if (foundHover !== hoveredItemIdRef.current) {
+        if (foundHover) labAudio.playHoverSound();
+        hoveredItemIdRef.current = foundHover;
+        setHoveredId(foundHover);
+      }
+    }
 
     const grabbed = ptr.active && !wasActive.current;
     const released = !ptr.active && wasActive.current;
 
-    if (grabbed) {
-      let closest: any = null;
-      let minDist = 2.8;
-      spawnedItems.forEach((item: any) => {
-        if (item.id === 'Spot Plate') return;
-        const dist = new THREE.Vector2(targetX, targetY).distanceTo(new THREE.Vector2(item.x, item.y));
-        if (dist < minDist) {
-          minDist = dist;
-          closest = item;
+    // Grab item
+    if (grabbed && hoveredItemIdRef.current) {
+      const grabId = hoveredItemIdRef.current;
+      draggedItemIdRef.current = grabId;
+      labAudio.playGrabSound();
+      setSpawnedItems((prev: any) => prev.map((i: any) => (i.id === grabId ? { ...i, isDragging: true } : i)));
+    }
+
+    const heldId = draggedItemIdRef.current;
+    const plate = spawnedItems.find((i: any) => i.id === 'Spot Plate');
+
+    // Continuous Pouring / Dispensing
+    if (ptr.active && heldId && plate) {
+      // Check which well is closest
+      let targetWellIdx = -1;
+      let minWellDist = 2.2;
+
+      wellPositions.forEach((xOff, idx) => {
+        const wellWorldPos = new THREE.Vector2(plate.x + xOff, plate.y + 0.3);
+        const dist = new THREE.Vector2(targetPosRef.current.x, targetPosRef.current.y).distanceTo(wellWorldPos);
+        if (dist < minWellDist && targetPosRef.current.y > plate.y + 0.2) {
+          minWellDist = dist;
+          targetWellIdx = idx;
         }
       });
-      if (closest) {
-        draggedItemIdRef.current = closest.id;
-        labAudio.playGrabSound();
-        setSpawnedItems((prev: any) => prev.map((i: any) => i.id === closest.id ? { ...i, isDragging: true } : i));
-      }
-    }
 
-    if (ptr.active && draggedItemIdRef.current) {
-      setSpawnedItems((prev: any) => prev.map((i: any) => i.id === draggedItemIdRef.current ? { ...i, x: targetPosRef.current.x, y: targetPosRef.current.y } : i));
-    }
+      if (targetWellIdx >= 0) {
+        const flow = calculateFlowRate(50, 15);
+        const targetWellX = plate.x + wellPositions[targetWellIdx];
+        const targetWellY = plate.y + 0.16;
 
-    if (released && draggedItemIdRef.current) {
-      const itemId = draggedItemIdRef.current;
-      setSpawnedItems((prev: any) => {
-        const item = prev.find((i: any) => i.id === itemId);
-        if (!item) return prev;
+        // Step 2: Lemon Juice into Well 0
+        if (heldId === 'Lemon Juice' && activeStep === 2 && targetWellIdx === 0) {
+          setStreamActive(true);
+          setStreamFrom(new THREE.Vector3(targetPosRef.current.x, targetPosRef.current.y - 0.3, 0));
+          setStreamTo(new THREE.Vector3(targetWellX, targetWellY, 0));
+          setStreamColor('#fef08a');
+          setCurrentFlowRate(flow);
+          setIsPouringNow(true);
 
-        const plate = prev.find((i: any) => i.id === 'Spot Plate');
-        if (plate) {
-          const distToPlate = new THREE.Vector2(item.x, item.y).distanceTo(new THREE.Vector2(plate.x, plate.y + 1));
-          if (distToPlate < 3) {
-            const expected = EXPERIMENT_STEPS[activeStep - 1];
-            if (expected && expected.expectedTool === item.id) {
-              labAudio.playPourEffect();
-
-              if (item.id === 'Lemon Juice') {
-                setWellColors((c: string[]) => ['#fef08a', c[1], c[2]]);
-                setWellLabels((l: string[]) => ['Lemon (Acid)', l[1], l[2]]);
-                triggerSuccess("Added Lemon Juice into Well 1.");
-              } else if (item.id === 'Dist. Water') {
-                setWellColors((c: string[]) => [c[0], '#bae6fd', c[2]]);
-                setWellLabels((l: string[]) => [l[0], 'Water (Neutral)', l[2]]);
-                triggerSuccess("Added Distilled Water into Well 2.");
-              } else if (item.id === 'Soap Solution') {
-                setWellColors((c: string[]) => [c[0], c[1], '#c7d2fe']);
-                setWellLabels((l: string[]) => [l[0], l[1], 'Soap (Base)']);
-                triggerSuccess("Added Soap Solution into Well 3.");
-              } else if (item.id === 'Indicator Dropper') {
-                setWellColors(['#ef4444', '#22c55e', '#3b82f6']);
-                triggerSuccess("Universal Indicator added! Colors shifted: Red (pH 2), Green (pH 7), Blue (pH 9)!");
-              }
-
-              const nextStep = activeStep + 1;
-              setActiveStep(nextStep);
-              setCurrentStep(nextStep);
-              draggedItemIdRef.current = null;
-              return prev.filter((i: any) => i.id !== item.id);
-            } else {
-              triggerMistake(`Wrong dropper! For Step ${activeStep}, you need: ${expected?.expectedTool}`);
+          setWellVolumes((v: number[]) => {
+            const newV = [...v];
+            newV[0] = Math.min(5, newV[0] + flow * delta * 0.4);
+            if (newV[0] >= 3 && !hasPromptedTarget.current) {
+              hasPromptedTarget.current = true;
+              setTargetPrompt("Well 1 filled with Lemon Juice! Release dropper.");
             }
+            return newV;
+          });
+        }
+        // Step 3: Dist. Water into Well 1
+        else if (heldId === 'Dist. Water' && activeStep === 3 && targetWellIdx === 1) {
+          setStreamActive(true);
+          setStreamFrom(new THREE.Vector3(targetPosRef.current.x, targetPosRef.current.y - 0.3, 0));
+          setStreamTo(new THREE.Vector3(targetWellX, targetWellY, 0));
+          setStreamColor('#bae6fd');
+          setCurrentFlowRate(flow);
+          setIsPouringNow(true);
+
+          setWellVolumes((v: number[]) => {
+            const newV = [...v];
+            newV[1] = Math.min(5, newV[1] + flow * delta * 0.4);
+            if (newV[1] >= 3 && !hasPromptedTarget.current) {
+              hasPromptedTarget.current = true;
+              setTargetPrompt("Well 2 filled with Distilled Water! Release dropper.");
+            }
+            return newV;
+          });
+        }
+        // Step 4: Soap Solution into Well 2
+        else if (heldId === 'Soap Solution' && activeStep === 4 && targetWellIdx === 2) {
+          setStreamActive(true);
+          setStreamFrom(new THREE.Vector3(targetPosRef.current.x, targetPosRef.current.y - 0.3, 0));
+          setStreamTo(new THREE.Vector3(targetWellX, targetWellY, 0));
+          setStreamColor('#c7d2fe');
+          setCurrentFlowRate(flow);
+          setIsPouringNow(true);
+
+          setWellVolumes((v: number[]) => {
+            const newV = [...v];
+            newV[2] = Math.min(5, newV[2] + flow * delta * 0.4);
+            if (newV[2] >= 3 && !hasPromptedTarget.current) {
+              hasPromptedTarget.current = true;
+              setTargetPrompt("Well 3 filled with Soap Solution! Release dropper.");
+            }
+            return newV;
+          });
+        }
+        // Step 5: Indicator into all wells
+        else if (heldId === 'Indicator Dropper' && activeStep === 5) {
+          setStreamActive(true);
+          setStreamFrom(new THREE.Vector3(targetPosRef.current.x, targetPosRef.current.y - 0.3, 0));
+          setStreamTo(new THREE.Vector3(targetWellX, targetWellY, 0));
+          setStreamColor('#22c55e');
+          setCurrentFlowRate(flow);
+          setIsPouringNow(true);
+
+          if (!hasPromptedTarget.current) {
+            hasPromptedTarget.current = true;
+            setTargetPrompt("Dispensing Universal Indicator across wells! Release to complete assay.");
+          }
+        } else {
+          setStreamActive(false);
+          setIsPouringNow(false);
+        }
+      } else {
+        setStreamActive(false);
+        setIsPouringNow(false);
+      }
+
+      // Update dragging position
+      setSpawnedItems((prev: any) =>
+        prev.map((i: any) =>
+          i.id === heldId ? { ...i, x: targetPosRef.current.x, y: targetPosRef.current.y } : i
+        )
+      );
+    } else {
+      setStreamActive(false);
+      setIsPouringNow(false);
+    }
+
+    // Release Item
+    if (released && heldId) {
+      labAudio.playReleaseSound();
+      setTargetPrompt(null);
+      hasPromptedTarget.current = false;
+
+      setSpawnedItems((prev: any) => {
+        const item = prev.find((i: any) => i.id === heldId);
+        if (!item || !plate) return prev;
+
+        const distToPlate = new THREE.Vector2(item.x, item.y).distanceTo(new THREE.Vector2(plate.x, plate.y + 1));
+
+        if (distToPlate < 3.2) {
+          const expected = EXPERIMENT_STEPS[activeStep - 1];
+          if (expected && expected.expectedTool === heldId) {
+            if (heldId === 'Lemon Juice') {
+              setWellLabels((l: string[]) => ['Lemon (Citric Acid)', l[1], l[2]]);
+              triggerSuccess("Added Lemon Juice into Well 1 (Acidic solution).", 20);
+              setActiveStep(3);
+              setCurrentStep(3);
+              draggedItemIdRef.current = null;
+              return prev.filter((i: any) => i.id !== heldId);
+            } else if (heldId === 'Dist. Water') {
+              setWellLabels((l: string[]) => [l[0], 'Water (Neutral)', l[2]]);
+              triggerSuccess("Added Distilled Water into Well 2 (Neutral solvent).", 20);
+              setActiveStep(4);
+              setCurrentStep(4);
+              draggedItemIdRef.current = null;
+              return prev.filter((i: any) => i.id !== heldId);
+            } else if (heldId === 'Soap Solution') {
+              setWellLabels((l: string[]) => [l[0], l[1], 'Soap (Mild Base)']);
+              triggerSuccess("Added Soap Solution into Well 3 (Alkaline solution).", 20);
+              setActiveStep(5);
+              setCurrentStep(5);
+              draggedItemIdRef.current = null;
+              return prev.filter((i: any) => i.id !== heldId);
+            } else if (heldId === 'Indicator Dropper') {
+              setIndicatorAdded(true);
+              setWellColors(['#ef4444', '#22c55e', '#3b82f6']);
+              triggerSuccess("Universal Indicator added! Colors transitioned: Red (pH 2.2), Green (pH 7.0), Blue (pH 9.0)!", 30);
+              setActiveStep(6);
+              setCurrentStep(6);
+              draggedItemIdRef.current = null;
+              return prev.filter((i: any) => i.id !== heldId);
+            }
+          } else {
+            triggerMistake(`Wrong dropper! For Step ${activeStep}, you need: ${expected?.expectedTool}`);
           }
         }
-        return prev.map((i: any) => i.id === item.id ? { ...i, isDragging: false, y: -0.6 } : i);
+        return prev.map((i: any) => (i.id === heldId ? { ...i, isDragging: false, y: -0.6 } : i));
       });
       draggedItemIdRef.current = null;
     }
+
     wasActive.current = ptr.active;
   });
 
@@ -378,22 +568,45 @@ function PHScene({ getPointer, activeStep, setActiveStep, setCurrentStep, trigge
         <meshStandardMaterial color="#121324" roughness={0.3} metalness={0.4} />
       </mesh>
 
+      {/* Dynamic Pouring Stream */}
+      <PourStreamMesh
+        from={streamFrom}
+        to={streamTo}
+        color={streamColor}
+        active={streamActive}
+        flowRate={currentFlowRate}
+      />
+
       {spawnedItems.map((item: any) => (
         <group key={item.id} position={[item.x, item.y, item.isDragging ? 1.5 : 0]}>
           {item.type === 'Plate' && (
             <group position={[0, 0, 0]}>
               <mesh position={[0, 0, 0]}>
-                <boxGeometry args={[5, 0.3, 2.5]} />
-                <meshStandardMaterial color="#e5e7eb" roughness={0.2} metalness={0.1} />
+                <boxGeometry args={[5.2, 0.3, 2.5]} />
+                <meshStandardMaterial color="#f1f5f9" roughness={0.2} metalness={0.1} />
               </mesh>
-              {/* 3 Wells */}
-              {[-1.6, 0, 1.6].map((xOffset, i) => (
+              
+              {/* 3 Porcelain Wells */}
+              {wellPositions.map((xOffset, i) => (
                 <group key={i} position={[xOffset, 0.16, 0]}>
+                  {/* Well indentation */}
                   <mesh>
-                    <cylinderGeometry args={[0.6, 0.5, 0.1, 24]} />
-                    <meshStandardMaterial color={wellColors[i]} roughness={0.2} />
+                    <cylinderGeometry args={[0.62, 0.52, 0.08, 24]} />
+                    <meshStandardMaterial color="#e2e8f0" roughness={0.3} />
                   </mesh>
-                  <Text position={[0, 0.6, 0]} fontSize={0.18} color="#111827" anchorX="center">
+                  
+                  {/* Well Liquid */}
+                  {wellVolumes[i] > 0 && (
+                    <LiquidMesh
+                      position={[0, 0.02 + (wellVolumes[i] / 5) * 0.04, 0]}
+                      radius={0.48 + (wellVolumes[i] / 5) * 0.08}
+                      height={(wellVolumes[i] / 5) * 0.08}
+                      color={wellColors[i]}
+                      opacity={0.9}
+                    />
+                  )}
+
+                  <Text position={[0, 0.7, 0]} fontSize={0.16} color="#0f172a" anchorX="center" outlineWidth={0.01}>
                     {`Well ${i+1}: ${wellLabels[i]}`}
                   </Text>
                 </group>
@@ -402,15 +615,34 @@ function PHScene({ getPointer, activeStep, setActiveStep, setCurrentStep, trigge
           )}
 
           {item.type === 'Dropper' && (
-            <group position={[0, 0.4, 0]}>
+            <group 
+              position={[0, 0.4, 0]}
+              rotation={item.isDragging ? [0, 0, -0.6] : [0, 0, 0]}
+              scale={hoveredId === item.id ? [1.15, 1.15, 1.15] : [1, 1, 1]}
+            >
+              {/* Squeeze bulb */}
               <mesh position={[0, 0.8, 0]}>
                 <sphereGeometry args={[0.25, 16, 16]} />
-                <meshStandardMaterial color={item.color} roughness={0.7} />
+                <meshStandardMaterial 
+                  color={item.color} 
+                  roughness={0.7}
+                  emissive={hoveredId === item.id ? item.color : '#000000'}
+                  emissiveIntensity={hoveredId === item.id ? 0.4 : 0}
+                />
               </mesh>
+              {/* Glass pipette body */}
               <mesh position={[0, 0.2, 0]}>
                 <cylinderGeometry args={[0.06, 0.06, 1.2, 16]} />
-                <meshPhysicalMaterial color="#ffffff" transmission={0.9} transparent opacity={0.5} />
+                <meshPhysicalMaterial color="#ffffff" transmission={0.9} transparent opacity={0.5} roughness={0.1} />
               </mesh>
+              {/* Internal liquid tint */}
+              <mesh position={[0, 0.15, 0]}>
+                <cylinderGeometry args={[0.04, 0.04, 0.8, 16]} />
+                <meshStandardMaterial color={item.color} transparent opacity={0.75} />
+              </mesh>
+              <Text position={[0, 1.2, 0]} fontSize={0.14} color="#ffffff" anchorX="center">
+                {item.name}
+              </Text>
             </group>
           )}
         </group>

@@ -19,22 +19,10 @@ const PHTestingLab = lazy(() =>
   import('./screens/PHTestingLab').then((m) => ({ default: m.PHTestingLab }))
 );
 
-const OhmsLawLab = lazy(() =>
-  import('./screens/OhmsLawLab').then((m) => ({ default: m.OhmsLawLab }))
-);
 const SimplePendulumLab = lazy(() =>
   import('./screens/SimplePendulumLab').then((m) => ({ default: m.SimplePendulumLab }))
 );
-const RefractionLab = lazy(() =>
-  import('./screens/RefractionLab').then((m) => ({ default: m.RefractionLab }))
-);
 
-const OnionPeelLab = lazy(() =>
-  import('./screens/OnionPeelLab').then((m) => ({ default: m.OnionPeelLab }))
-);
-const StomataLab = lazy(() =>
-  import('./screens/StomataLab').then((m) => ({ default: m.StomataLab }))
-);
 const HumanHeartLab = lazy(() =>
   import('./screens/HumanHeartLab').then((m) => ({ default: m.HumanHeartLab }))
 );
@@ -54,18 +42,10 @@ function LabRouter() {
       return <PHTestingLab />;
 
     // Physics
-    case 'ohms-law':
-      return <OhmsLawLab />;
     case 'simple-pendulum':
       return <SimplePendulumLab />;
-    case 'refraction-slab':
-      return <RefractionLab />;
 
     // Biology
-    case 'onion-peel':
-      return <OnionPeelLab />;
-    case 'stomata-obs':
-      return <StomataLab />;
     case 'human-heart':
       return <HumanHeartLab />;
 

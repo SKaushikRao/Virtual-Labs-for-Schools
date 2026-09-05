@@ -1,16 +1,40 @@
 import { useEffect, useRef, useState } from 'react';
 import { HandLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 
+export interface HandTrackingState {
+  x: number;
+  y: number;
+  z: number;
+  isPinching: boolean;
+  pinchDistance: number;
+  confidence: number;
+  lastSeen: number;
+}
+
+export interface HandData {
+  landmarks: { x: number; y: number; z: number }[];
+  handedness: 'Left' | 'Right';
+  isPinching: boolean;
+  pinchDistance: number;
+  center: { x: number; y: number; z: number };
+}
+
+const PINCH_ENGAGE_THRESHOLD = 0.045;
+const PINCH_RELEASE_THRESHOLD = 0.075;
+
 export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | null>) {
   const [isReady, setIsReady] = useState(false);
   const handLandmarkerRef = useRef<HandLandmarker | null>(null);
-  const pinchDistRef = useRef<number>(1);
-  const cursorRef = useRef<{ x: number; y: number; isPinching: boolean; lastSeen: number }>({
+  const handStateRef = useRef<HandTrackingState>({
     x: -1,
     y: -1,
+    z: 0,
     isPinching: false,
+    pinchDistance: 1,
+    confidence: 0,
     lastSeen: 0,
   });
+  const handsRef = useRef<HandData[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -29,7 +53,7 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
             delegate: "GPU"
           },
           runningMode: "VIDEO",
-          numHands: 1,
+          numHands: 2,
           minHandDetectionConfidence: 0.5,
           minHandPresenceConfidence: 0.5,
           minTrackingConfidence: 0.5
@@ -57,7 +81,6 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
 
     let stream: MediaStream | null = null;
     let animationFrameId: number;
-    let lastDetectTime = 0;
 
     async function setupCamera() {
       try {
@@ -80,44 +103,74 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
       if (!videoRef.current || !handLandmarkerRef.current) return;
 
       const now = performance.now();
-      // Throttle inference to ~30 FPS (33ms) to prevent GPU main thread bottleneck
-      if (now - lastDetectTime >= 33 && videoRef.current.readyState >= 2) {
-        lastDetectTime = now;
+      if (videoRef.current.readyState >= 2) {
         try {
           const results = handLandmarkerRef.current.detectForVideo(videoRef.current, now);
           
           if (results.landmarks && results.landmarks.length > 0) {
-            const landmarks = results.landmarks[0];
-            const indexTip = landmarks[8];
-            const thumbTip = landmarks[4];
+            const detectedHands: HandData[] = [];
 
-            // Map webcam space to screen space (mirror x-axis)
-            const x = 1 - indexTip.x;
-            const y = indexTip.y;
-            
-            // Calculate 2D pinch distance
-            const dx = indexTip.x - thumbTip.x;
-            const dy = indexTip.y - thumbTip.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            
-            pinchDistRef.current = dist;
-            cursorRef.current = {
-              x,
-              y,
-              isPinching: dist < 0.08, // Calibrated sensitive pinch threshold
-              lastSeen: now,
-            };
+            for (let i = 0; i < results.landmarks.length; i++) {
+              const rawLandmarks = results.landmarks[i];
+              // Map landmarks to screen space (mirror x-axis)
+              const mapped = rawLandmarks.map((lm) => ({
+                x: 1 - lm.x,
+                y: lm.y,
+                z: lm.z || 0,
+              }));
+
+              const indexTip = mapped[8];
+              const thumbTip = mapped[4];
+              const middleMcp = mapped[9]; // stable hand center
+
+              const dx = indexTip.x - thumbTip.x;
+              const dy = indexTip.y - thumbTip.y;
+              const dz = indexTip.z - thumbTip.z;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+              const prevHand = handsRef.current[i];
+              const isPinching = prevHand && prevHand.isPinching
+                ? dist < PINCH_RELEASE_THRESHOLD
+                : dist < PINCH_ENGAGE_THRESHOLD;
+
+              let handedness: 'Left' | 'Right' = 'Right';
+              if (results.handedness && results.handedness[i] && results.handedness[i][0]) {
+                const catName = results.handedness[i][0].categoryName || results.handedness[i][0].displayName;
+                // Note: MediaPipe mirrors input, so Left is displayed on user's Right side
+                handedness = catName === 'Left' ? 'Left' : 'Right';
+              }
+
+              detectedHands.push({
+                landmarks: mapped,
+                handedness,
+                isPinching,
+                pinchDistance: dist,
+                center: middleMcp || mapped[0],
+              });
+            }
+
+            handsRef.current = detectedHands;
+
+            // Maintain primary hand state for single-hand labs
+            const primary = detectedHands[0];
+            const pIndex = primary.landmarks[8];
+            handStateRef.current.x = pIndex.x;
+            handStateRef.current.y = pIndex.y;
+            handStateRef.current.z = pIndex.z;
+            handStateRef.current.pinchDistance = primary.pinchDistance;
+            handStateRef.current.isPinching = primary.isPinching;
+            handStateRef.current.confidence = 1;
+            handStateRef.current.lastSeen = now;
           } else {
-            // Clear hand cursor immediately when hand is outside frame
-            cursorRef.current = {
-              x: -1,
-              y: -1,
-              isPinching: false,
-              lastSeen: 0,
-            };
+            handsRef.current = [];
+            handStateRef.current.x = -1;
+            handStateRef.current.y = -1;
+            handStateRef.current.isPinching = false;
+            handStateRef.current.pinchDistance = 1;
+            handStateRef.current.confidence = 0;
           }
         } catch {
-          // Ignore frame skip
+          // Ignore transient frame skips
         }
       }
 
@@ -132,5 +185,7 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
     };
   }, [isReady, videoRef]);
 
-  return { isReady, cursorRef };
+  return { isReady, handStateRef, cursorRef: handStateRef, handsRef };
 }
+
+

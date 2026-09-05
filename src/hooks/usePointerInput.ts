@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-export function usePointerInput(handCursorRef: React.RefObject<{ x: number; y: number; isPinching: boolean; lastSeen?: number }>) {
+export function usePointerInput(handCursorRef: React.RefObject<{ x: number; y: number; isPinching?: boolean; lastSeen?: number } | null>) {
   const pointerRef = useRef({ x: 0.5, y: 0.5, isDown: false, lastMouseActivity: Date.now() });
 
   useEffect(() => {
