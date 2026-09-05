@@ -326,6 +326,7 @@ export function FlameTestLab() {
 function FlameScene({ getPointer, activeStep, setActiveStep, setCurrentStep, triggerSuccess, triggerMistake, flameLit, flameColor, setFlameColor, setMetalName, spawnedItems, setSpawnedItems }: any) {
   const { viewport } = useThree();
   const draggedItemIdRef = useRef<string | null>(null);
+  const itemGroupsRef = useRef<{ [key: string]: THREE.Group | null }>({});
   const wasActive = useRef(false);
   const targetPosRef = useRef(new THREE.Vector3());
 
@@ -352,23 +353,32 @@ function FlameScene({ getPointer, activeStep, setActiveStep, setCurrentStep, tri
       if (closest) {
         draggedItemIdRef.current = closest.id;
         labAudio.playGrabSound();
-        setSpawnedItems((prev: any) => prev.map((i: any) => i.id === closest.id ? { ...i, isDragging: true } : i));
+        const grp = itemGroupsRef.current[closest.id];
+        if (grp) {
+          grp.position.set(targetX, targetY, 1.5);
+        }
       }
     }
 
     if (ptr.active && draggedItemIdRef.current) {
-      setSpawnedItems((prev: any) => prev.map((i: any) => i.id === draggedItemIdRef.current ? { ...i, x: targetPosRef.current.x, y: targetPosRef.current.y } : i));
+      const grp = itemGroupsRef.current[draggedItemIdRef.current];
+      if (grp) {
+        grp.position.set(targetPosRef.current.x, targetPosRef.current.y, 1.5);
+      }
     }
 
     if (released && draggedItemIdRef.current) {
       const itemId = draggedItemIdRef.current;
+      const dropX = targetPosRef.current.x;
+      const dropY = targetPosRef.current.y;
+
       setSpawnedItems((prev: any) => {
         const item = prev.find((i: any) => i.id === itemId);
         if (!item) return prev;
 
         const burner = prev.find((i: any) => i.id === 'Burner');
         if (burner) {
-          const distToFlame = new THREE.Vector2(item.x, item.y).distanceTo(new THREE.Vector2(burner.x, burner.y + 1.8));
+          const distToFlame = new THREE.Vector2(dropX, dropY).distanceTo(new THREE.Vector2(burner.x, burner.y + 1.8));
           if (distToFlame < 3.2) {
             const expected = EXPERIMENT_STEPS[activeStep - 1];
             if (expected && expected.expectedTool === item.id) {
@@ -402,7 +412,7 @@ function FlameScene({ getPointer, activeStep, setActiveStep, setCurrentStep, tri
             }
           }
         }
-        return prev.map((i: any) => i.id === item.id ? { ...i, isDragging: false, y: -0.6 } : i);
+        return prev.map((i: any) => i.id === item.id ? { ...i, isDragging: false, x: dropX, y: -0.6 } : i);
       });
       draggedItemIdRef.current = null;
     }
@@ -417,7 +427,11 @@ function FlameScene({ getPointer, activeStep, setActiveStep, setCurrentStep, tri
       </mesh>
 
       {spawnedItems.map((item: any) => (
-        <group key={item.id} position={[item.x, item.y, item.isDragging ? 1.5 : 0]}>
+        <group
+          key={item.id}
+          ref={(el) => { if (el) itemGroupsRef.current[item.id] = el; }}
+          position={[item.x, item.y, item.isDragging ? 1.5 : 0]}
+        >
           {item.type === 'Burner' && (
             <group position={[0, 0, 0]}>
               <mesh position={[0, 0.2, 0]}>

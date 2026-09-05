@@ -19,9 +19,9 @@ export interface HandData {
   center: { x: number; y: number; z: number };
 }
 
-const PINCH_ENGAGE_THRESHOLD = 0.045;
-const PINCH_RELEASE_THRESHOLD = 0.075;
-const INFERENCE_INTERVAL_MS = 33; // 30 FPS inference to prevent GPU/WebGL congestion
+const PINCH_ENGAGE_THRESHOLD = 0.068;
+const PINCH_RELEASE_THRESHOLD = 0.088;
+let activeDelegate: "GPU" | "CPU" = "GPU";
 
 // Singleton cache for MediaPipe HandLandmarker to avoid WebGL / WASM resource thrashing
 let sharedHandLandmarkerPromise: Promise<HandLandmarker> | null = null;
@@ -33,17 +33,36 @@ async function getSharedHandLandmarker(): Promise<HandLandmarker> {
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
       );
       
-      return await HandLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-          delegate: "CPU"
-        },
-        runningMode: "VIDEO",
-        numHands: 2,
-        minHandDetectionConfidence: 0.5,
-        minHandPresenceConfidence: 0.5,
-        minTrackingConfidence: 0.5
-      });
+      try {
+        const landmarker = await HandLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+            delegate: "GPU"
+          },
+          runningMode: "VIDEO",
+          numHands: 2,
+          minHandDetectionConfidence: 0.5,
+          minHandPresenceConfidence: 0.5,
+          minTrackingConfidence: 0.5
+        });
+        activeDelegate = "GPU";
+        return landmarker;
+      } catch (gpuErr) {
+        console.warn("GPU delegate initialization failed, falling back to CPU:", gpuErr);
+        const landmarker = await HandLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+            delegate: "CPU"
+          },
+          runningMode: "VIDEO",
+          numHands: 2,
+          minHandDetectionConfidence: 0.5,
+          minHandPresenceConfidence: 0.5,
+          minTrackingConfidence: 0.5
+        });
+        activeDelegate = "CPU";
+        return landmarker;
+      }
     })();
   }
   return sharedHandLandmarkerPromise;
@@ -114,9 +133,9 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
       if (!isRunning || !videoRef.current || !handLandmarkerRef.current) return;
 
       const now = performance.now();
-
-      // Throttle heavy neural inference to ~30 FPS to avoid WebGL / GPU frame queue stalls
-      if (now - lastInferenceTime.current >= INFERENCE_INTERVAL_MS) {
+      // Allow full 60 FPS real-time tracking when GPU delegate is active; throttle only on CPU fallback
+      const minInterval = activeDelegate === "GPU" ? 0 : 33;
+      if (now - lastInferenceTime.current >= minInterval) {
         lastInferenceTime.current = now;
 
         if (videoRef.current.readyState >= 2) {

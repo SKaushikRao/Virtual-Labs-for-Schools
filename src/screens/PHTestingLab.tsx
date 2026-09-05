@@ -354,6 +354,7 @@ function PHScene({
   const { viewport } = useThree();
   const draggedItemIdRef = useRef<string | null>(null);
   const hoveredItemIdRef = useRef<string | null>(null);
+  const itemGroupsRef = useRef<{ [key: string]: THREE.Group | null }>({});
   const wasActive = useRef(false);
   const targetPosRef = useRef(new THREE.Vector3());
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -383,10 +384,10 @@ function PHScene({
     const targetY = -(ptr.y * 2 - 1) * (viewport.height / 2);
     targetPosRef.current.lerp(new THREE.Vector3(targetX, targetY, 2), 0.35);
 
-    // Hover detection
+    // Hover detection - evaluates against instantaneous pointer coords
     if (!draggedItemIdRef.current) {
       let foundHover: string | null = null;
-      let minHoverDist = 2.5;
+      let minHoverDist = 2.6;
 
       spawnedItems.forEach((item: any) => {
         if (item.id === 'Spot Plate') return;
@@ -407,12 +408,28 @@ function PHScene({
     const grabbed = ptr.active && !wasActive.current;
     const released = !ptr.active && wasActive.current;
 
-    // Grab item
-    if (grabbed && hoveredItemIdRef.current) {
-      const grabId = hoveredItemIdRef.current;
-      draggedItemIdRef.current = grabId;
-      labAudio.playGrabSound();
-      setSpawnedItems((prev: any) => prev.map((i: any) => (i.id === grabId ? { ...i, isDragging: true } : i)));
+    // Grab item - Instantaneous pickup on pinch
+    if (grabbed) {
+      let targetGrabId = hoveredItemIdRef.current;
+      if (!targetGrabId) {
+        let minGrabDist = 2.8;
+        spawnedItems.forEach((item: any) => {
+          if (item.id === 'Spot Plate') return;
+          const dist = new THREE.Vector2(targetX, targetY).distanceTo(new THREE.Vector2(item.x, item.y));
+          if (dist < minGrabDist) {
+            minGrabDist = dist;
+            targetGrabId = item.id;
+          }
+        });
+      }
+      if (targetGrabId) {
+        draggedItemIdRef.current = targetGrabId;
+        labAudio.playGrabSound();
+        const grp = itemGroupsRef.current[targetGrabId];
+        if (grp) {
+          grp.position.set(targetX, targetY, 1.5);
+        }
+      }
     }
 
     const heldId = draggedItemIdRef.current;
@@ -448,10 +465,11 @@ function PHScene({
           streamColorRef.current.set('#fef08a');
 
           well1VolRef.current = Math.min(5, well1VolRef.current + flow * delta * 0.5);
-          if (well1VolRef.current >= 3 && !hasPromptedTarget.current) {
+
+          if (well1VolRef.current >= 3.5 && !hasPromptedTarget.current) {
             hasPromptedTarget.current = true;
             labAudio.playSuccessChime();
-            setTargetPrompt("Well 1 filled with Lemon Juice! Release dropper.");
+            setTargetPrompt('Well 1 filled with Lemon Juice! Release dropper.');
           }
         }
         // Step 3: Dist. Water into Well 1
@@ -462,10 +480,11 @@ function PHScene({
           streamColorRef.current.set('#bae6fd');
 
           well2VolRef.current = Math.min(5, well2VolRef.current + flow * delta * 0.5);
-          if (well2VolRef.current >= 3 && !hasPromptedTarget.current) {
+
+          if (well2VolRef.current >= 3.5 && !hasPromptedTarget.current) {
             hasPromptedTarget.current = true;
             labAudio.playSuccessChime();
-            setTargetPrompt("Well 2 filled with Distilled Water! Release dropper.");
+            setTargetPrompt('Well 2 filled with Distilled Water! Release dropper.');
           }
         }
         // Step 4: Soap Solution into Well 2
@@ -476,24 +495,21 @@ function PHScene({
           streamColorRef.current.set('#c7d2fe');
 
           well3VolRef.current = Math.min(5, well3VolRef.current + flow * delta * 0.5);
-          if (well3VolRef.current >= 3 && !hasPromptedTarget.current) {
+
+          if (well3VolRef.current >= 3.5 && !hasPromptedTarget.current) {
             hasPromptedTarget.current = true;
             labAudio.playSuccessChime();
-            setTargetPrompt("Well 3 filled with Soap Solution! Release dropper.");
+            setTargetPrompt('Well 3 filled with Soap Solution! Release dropper.');
           }
         }
-        // Step 5: Indicator into all wells
+        // Step 5: Universal Indicator into all wells
         else if (heldId === 'Indicator Dropper' && activeStep === 5) {
           isPouringRef.current = true;
           sourcePositionRef.current.set(targetPosRef.current.x, targetPosRef.current.y - 0.3, 0);
           targetYRef.current = targetWellY;
           streamColorRef.current.set('#22c55e');
 
-          if (!hasPromptedTarget.current) {
-            hasPromptedTarget.current = true;
-            labAudio.playSuccessChime();
-            setTargetPrompt("Universal Indicator dispensed across wells! Release to complete assay.");
-          }
+          setTargetPrompt('Dispensing Universal Indicator — observe color transition!');
         } else {
           isPouringRef.current = false;
         }
@@ -501,10 +517,11 @@ function PHScene({
         isPouringRef.current = false;
       }
 
-      // Update dragging position
-      setSpawnedItems((prev: any) =>
-        prev.map((i: any) => (i.id === heldId ? { ...i, x: targetPosRef.current.x, y: targetPosRef.current.y } : i))
-      );
+      // Smoothly drag held item in 3D (Zero React state overhead)
+      const grp = itemGroupsRef.current[heldId];
+      if (grp) {
+        grp.position.set(targetPosRef.current.x, targetPosRef.current.y, 1.5);
+      }
     } else {
       isPouringRef.current = false;
     }
@@ -515,11 +532,14 @@ function PHScene({
       setTargetPrompt(null);
       hasPromptedTarget.current = false;
 
+      const dropX = targetPosRef.current.x;
+      const dropY = targetPosRef.current.y;
+
       setSpawnedItems((prev: any) => {
         const item = prev.find((i: any) => i.id === heldId);
         if (!item || !plate) return prev;
 
-        const distToPlate = new THREE.Vector2(item.x, item.y).distanceTo(new THREE.Vector2(plate.x, plate.y + 1));
+        const distToPlate = new THREE.Vector2(dropX, dropY).distanceTo(new THREE.Vector2(plate.x, plate.y + 1));
 
         if (distToPlate < 3.2) {
           const expected = EXPERIMENT_STEPS[activeStep - 1];
@@ -560,7 +580,7 @@ function PHScene({
             triggerMistake(`Wrong dropper! For Step ${activeStep}, you need: ${expected?.expectedTool}`);
           }
         }
-        return prev.map((i: any) => (i.id === heldId ? { ...i, isDragging: false, y: -0.6 } : i));
+        return prev.map((i: any) => (i.id === heldId ? { ...i, isDragging: false, x: dropX, y: -0.6 } : i));
       });
       draggedItemIdRef.current = null;
     }
@@ -627,7 +647,11 @@ function PHScene({
       )}
 
       {spawnedItems.map((item: any) => (
-        <group key={item.id} position={[item.x, item.y, item.isDragging ? 1.5 : 0]}>
+        <group
+          key={item.id}
+          ref={(el) => { if (el) itemGroupsRef.current[item.id] = el; }}
+          position={[item.x, item.y, item.isDragging ? 1.5 : 0]}
+        >
           {item.type === 'Plate' && (
             <group position={[0, 0, 0]}>
               <mesh position={[0, 0, 0]}>

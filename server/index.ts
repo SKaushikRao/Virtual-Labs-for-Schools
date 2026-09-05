@@ -11,11 +11,11 @@ const PORT = process.env.PORT || 3001;
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
-// Voice ID map for ElevenLabs
+// Voice ID map for ElevenLabs (using standard premade voices compatible with Free & Creator tiers)
 export const VOICE_ID_MAP: Record<string, string> = {
-  en: process.env.ELEVENLABS_VOICE_EN || '21m00Tcm4TlvDq8ikWAM', // Rachel
-  hi: process.env.ELEVENLABS_VOICE_HI || 'onwK4e9ZLuTAKqWW03F9', // Multilingual Hindi Voice
-  te: process.env.ELEVENLABS_VOICE_TE || 'onwK4e9ZLuTAKqWW03F9', // Multilingual Telugu Voice
+  en: process.env.ELEVENLABS_VOICE_EN || 'JBFqnCBsd6RMkjVDRZzb', // George (Premade)
+  hi: process.env.ELEVENLABS_VOICE_HI || 'onwK4e9ZLuTAKqWW03F9', // Daniel / Multilingual (Premade)
+  te: process.env.ELEVENLABS_VOICE_TE || 'onwK4e9ZLuTAKqWW03F9', // Daniel / Multilingual (Premade)
 };
 
 interface CorpusChunk {
@@ -229,13 +229,13 @@ async function generateMentorResponse(
     };
   }
 
-  const candidateModels = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'allam-2-7b'];
+  const candidateModels = ['qwen/qwen3.8-27b', 'qwen/qwen3.6-27b', 'allam-2-7b', 'canopylabs/orpheus-v1-english'];
 
   for (const model of candidateModels) {
     try {
       let systemPrompt = '';
       if (language === 'te') {
-        systemPrompt = `You are Aarav, an encouraging, friendly senior-student science lab buddy assisting a high school student in a virtual practical science lab.
+        systemPrompt = `You are MindLab AI, an encouraging, friendly senior-student science lab mentor assisting a high school student in a virtual practical science lab.
 CRITICAL LANGUAGE REQUIREMENT:
 You MUST respond ENTIRELY in natural, fluent Telugu using the Telugu script (తెలుగు లిపి).
 Do NOT write your response in English or Hindi.
@@ -248,7 +248,7 @@ ${mistakeContext ? `Recent Student Mis-step: ${mistakeContext}` : ''}
 
 ${hasDirectMatch ? `NCERT Telugu Lab Facts:\n${contextText}` : 'Directly explain the student question accurately with scientific clarity.'}`;
       } else if (language === 'hi') {
-        systemPrompt = `You are Aarav, an encouraging, friendly senior-student science lab buddy assisting a high school student in a virtual science laboratory.
+        systemPrompt = `You are MindLab AI, an encouraging, friendly senior-student science lab mentor assisting a high school student in a virtual science laboratory.
 CRITICAL LANGUAGE REQUIREMENT:
 You MUST respond ENTIRELY in fluent Hindi using the Devanagari script (हिंदी लिपि).
 Do NOT write your answer in English.
@@ -261,7 +261,7 @@ ${mistakeContext ? `Recent Student Mis-step: ${mistakeContext}` : ''}
 
 ${hasDirectMatch ? `NCERT Lab Facts:\n${contextText}` : 'Directly explain the student question accurately with scientific rigor.'}`;
       } else {
-        systemPrompt = `You are Aarav, an encouraging, friendly senior-student science lab buddy assisting a high school student in a virtual science lab.
+        systemPrompt = `You are MindLab AI, an encouraging, friendly senior-student science lab mentor assisting a high school student in a virtual science lab.
 Guidelines:
 1. Speak warmly, clearly, and naturally in English.
 2. Keep your answer strictly to 2 to 4 concise, high-value sentences.
@@ -357,30 +357,65 @@ app.post('/api/mentor/ask-voice', async (req: Request, res: Response) => {
 
     let transcript = language === 'te' ? 'తర్వాత దశలో ఏమి చేయాలి?' : language === 'hi' ? 'प्रयोग का अगला चरण क्या है?' : 'What is the next step in this experiment?';
 
-    // 1. ElevenLabs STT
-    if (elevenKey && elevenKey !== 'MY_ELEVENLABS_API_KEY' && audioBase64) {
-      try {
-        const audioBuffer = Buffer.from(audioBase64, 'base64');
-        const formData = new FormData();
-        const blob = new Blob([audioBuffer], { type: 'audio/webm' });
-        formData.append('file', blob, 'audio.webm');
-        formData.append('model_id', 'scribe_v2');
+    // 1. STT: Try Groq Whisper STT first, fallback to ElevenLabs STT
+    if (audioBase64) {
+      const groqKey = process.env.GROQ_API_KEY;
+      let transcribed = false;
 
-        const sttRes = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
-          method: 'POST',
-          headers: { 'xi-api-key': elevenKey },
-          body: formData,
-        });
+      // 1A. Groq Whisper transcription (ultra-fast & robust)
+      if (groqKey && groqKey !== 'MY_GROQ_API_KEY') {
+        try {
+          const audioBuffer = Buffer.from(audioBase64, 'base64');
+          const formData = new FormData();
+          const blob = new Blob([audioBuffer], { type: 'audio/webm' });
+          formData.append('file', blob, 'audio.webm');
+          formData.append('model', 'whisper-large-v3-turbo');
+          if (language === 'hi') formData.append('language', 'hi');
+          else if (language === 'te') formData.append('language', 'te');
+          else formData.append('language', 'en');
 
-        if (sttRes.ok) {
-          const sttData = await sttRes.json();
-          if (sttData.text) transcript = sttData.text;
-        } else {
-          const rawErr = await sttRes.text();
-          console.error(`[ElevenLabs STT Error] HTTP ${sttRes.status}:`, rawErr);
+          const whisperRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${groqKey}` },
+            body: formData,
+          });
+
+          if (whisperRes.ok) {
+            const whisperData = await whisperRes.json();
+            if (whisperData.text && whisperData.text.trim()) {
+              transcript = whisperData.text.trim();
+              transcribed = true;
+            }
+          } else {
+            console.warn('[Groq Whisper STT non-ok]:', await whisperRes.text());
+          }
+        } catch (whisperErr) {
+          console.error('[Groq Whisper STT Exception]:', whisperErr);
         }
-      } catch (sttErr) {
-        console.error('[ElevenLabs STT Exception]:', sttErr);
+      }
+
+      // 1B. ElevenLabs STT Fallback
+      if (!transcribed && elevenKey && elevenKey !== 'MY_ELEVENLABS_API_KEY') {
+        try {
+          const audioBuffer = Buffer.from(audioBase64, 'base64');
+          const formData = new FormData();
+          const blob = new Blob([audioBuffer], { type: 'audio/webm' });
+          formData.append('file', blob, 'audio.webm');
+          formData.append('model_id', 'scribe_v2');
+
+          const sttRes = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
+            method: 'POST',
+            headers: { 'xi-api-key': elevenKey },
+            body: formData,
+          });
+
+          if (sttRes.ok) {
+            const sttData = await sttRes.json();
+            if (sttData.text) transcript = sttData.text;
+          }
+        } catch (sttErr) {
+          console.error('[ElevenLabs STT Exception]:', sttErr);
+        }
       }
     }
 

@@ -389,6 +389,7 @@ function LabScene({
   const { viewport } = useThree();
   const draggedItemIdRef = useRef<string | null>(null);
   const hoveredItemIdRef = useRef<string | null>(null);
+  const itemGroupsRef = useRef<{ [key: string]: THREE.Group | null }>({});
   const wasActive = useRef(false);
   const targetPosRef = useRef(new THREE.Vector3());
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -419,10 +420,10 @@ function LabScene({
     const targetY = ndcY * (viewport.height / 2);
     targetPosRef.current.lerp(new THREE.Vector3(targetX, targetY, 2), 0.35);
 
-    // Hover detection
+    // Hover detection - evaluates against instantaneous pointer coords
     if (!draggedItemIdRef.current) {
       let foundHover: string | null = null;
-      let minHoverDist = 2.4;
+      let minHoverDist = 2.6;
 
       spawnedItems.forEach((item: any) => {
         if (item.id === 'Beaker') return;
@@ -443,12 +444,29 @@ function LabScene({
     const grabbed = ptr.active && !wasActive.current;
     const released = !ptr.active && wasActive.current;
 
-    // Grab item
-    if (grabbed && hoveredItemIdRef.current) {
-      const grabId = hoveredItemIdRef.current;
-      draggedItemIdRef.current = grabId;
-      labAudio.playGrabSound();
-      setSpawnedItems((prev: any) => prev.map((i: any) => (i.id === grabId ? { ...i, isDragging: true } : i)));
+    // Grab item - Instantaneous pickup on pinch
+    if (grabbed) {
+      let targetGrabId = hoveredItemIdRef.current;
+      if (!targetGrabId) {
+        let minGrabDist = 2.8;
+        spawnedItems.forEach((item: any) => {
+          if (item.id === 'Beaker') return;
+          const dist = new THREE.Vector2(targetX, targetY).distanceTo(new THREE.Vector2(item.x, item.y));
+          if (dist < minGrabDist) {
+            minGrabDist = dist;
+            targetGrabId = item.id;
+          }
+        });
+      }
+      if (targetGrabId) {
+        draggedItemIdRef.current = targetGrabId;
+        labAudio.playGrabSound();
+        // Immediately warp group to hand to eliminate any visual pickup lag
+        const grp = itemGroupsRef.current[targetGrabId];
+        if (grp) {
+          grp.position.set(targetX, targetY, 1.5);
+        }
+      }
     }
 
     const heldId = draggedItemIdRef.current;
@@ -569,11 +587,12 @@ function LabScene({
       isPouringRef.current = false;
     }
 
-    // Smoothly drag held item
+    // Smoothly drag held item directly in 3D (Zero React re-renders in hot loop)
     if (ptr.active && heldId) {
-      setSpawnedItems((prev: any) =>
-        prev.map((i: any) => (i.id === heldId ? { ...i, x: targetPosRef.current.x, y: targetPosRef.current.y } : i))
-      );
+      const grp = itemGroupsRef.current[heldId];
+      if (grp) {
+        grp.position.set(targetPosRef.current.x, targetPosRef.current.y, 1.5);
+      }
     }
 
     // Item Release & Step Transition
@@ -583,11 +602,14 @@ function LabScene({
       hasPromptedTarget.current = false;
       hasWarnedOverpour.current = false;
 
+      const dropX = targetPosRef.current.x;
+      const dropY = targetPosRef.current.y;
+
       setSpawnedItems((prev: any) => {
         const item = prev.find((i: any) => i.id === heldId);
         if (!item || !beaker) return prev;
 
-        const distToBeaker = new THREE.Vector2(item.x, item.y).distanceTo(new THREE.Vector2(beaker.x, beaker.y + 1.2));
+        const distToBeaker = new THREE.Vector2(dropX, dropY).distanceTo(new THREE.Vector2(beaker.x, beaker.y + 1.2));
 
         if (distToBeaker < 3.2) {
           const expected = EXPERIMENT_STEPS[activeStep - 1];
@@ -635,7 +657,7 @@ function LabScene({
             triggerMistake(`Incorrect reagent! For Step ${activeStep}, use: ${expected?.expectedTool}`);
           }
         }
-        return prev.map((i: any) => (i.id === heldId ? { ...i, isDragging: false, y: -0.5 } : i));
+        return prev.map((i: any) => (i.id === heldId ? { ...i, isDragging: false, x: dropX, y: -0.5 } : i));
       });
       draggedItemIdRef.current = null;
     }
@@ -702,7 +724,11 @@ function LabScene({
       )}
 
       {spawnedItems.map((item: any) => (
-        <group key={item.id} position={[item.x, item.y, item.isDragging ? 1.5 : 0]}>
+        <group
+          key={item.id}
+          ref={(el) => { if (el) itemGroupsRef.current[item.id] = el; }}
+          position={[item.x, item.y, item.isDragging ? 1.5 : 0]}
+        >
           {item.type === 'Beaker' && (
             <group position={[0, 0, 0]}>
               {/* Borosilicate Glass Beaker Body */}

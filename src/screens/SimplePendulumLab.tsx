@@ -328,9 +328,10 @@ export function SimplePendulumLab() {
 }
 
 function PendulumScene({ getPointer, activeStep, setActiveStep, setCurrentStep, triggerSuccess, triggerMistake, pendulumLength, setPendulumLength, isOscillating, setIsOscillating, setStopwatchRunning, spawnedItems, setSpawnedItems }: any) {
-  const { viewport, camera, raycaster } = useThree();
+  const { viewport } = useThree();
   const draggedItemIdRef = useRef<string | null>(null);
   const hoveredItemIdRef = useRef<string | null>(null);
+  const itemGroupsRef = useRef<{ [key: string]: THREE.Group | null }>({});
   const wasActive = useRef(false);
   const targetPosRef = useRef(new THREE.Vector3());
   const pendulumArmRef = useRef<THREE.Group>(null);
@@ -355,7 +356,7 @@ function PendulumScene({ getPointer, activeStep, setActiveStep, setCurrentStep, 
     // Raycast / Proximity Hover detection when not dragging
     if (!draggedItemIdRef.current && !isDraggingHangingBob.current) {
       let foundHover: string | null = null;
-      let minHoverDist = 2.4;
+      let minHoverDist = 2.6;
 
       // Check bench items
       spawnedItems.forEach((item: any) => {
@@ -371,7 +372,7 @@ function PendulumScene({ getPointer, activeStep, setActiveStep, setCurrentStep, 
       if (activeStep === 3 && spawnedItems.some((i: any) => i.id === 'Pendulum Stand')) {
         const bobWorldPos = new THREE.Vector2(0.2, 3.4 - 0.6 - pendulumLength * 2.5);
         const distToBob = new THREE.Vector2(targetX, targetY).distanceTo(bobWorldPos);
-        if (distToBob < 2.0) {
+        if (distToBob < 2.2) {
           foundHover = 'HangingBob';
         }
       }
@@ -386,21 +387,42 @@ function PendulumScene({ getPointer, activeStep, setActiveStep, setCurrentStep, 
     const grabbed = ptr.active && !wasActive.current;
     const released = !ptr.active && wasActive.current;
 
-    // Grab transition
+    // Grab transition - Instantaneous pickup
     if (grabbed) {
-      if (hoveredItemIdRef.current === 'HangingBob' || activeStep === 3) {
+      let targetGrabId = hoveredItemIdRef.current;
+
+      // Immediate fallback proximity check on pinch
+      if (!targetGrabId) {
+        let minGrabDist = 2.8;
+        spawnedItems.forEach((item: any) => {
+          if (item.id === 'Pendulum Stand') return;
+          const dist = new THREE.Vector2(targetX, targetY).distanceTo(new THREE.Vector2(item.x, item.y));
+          if (dist < minGrabDist) {
+            minGrabDist = dist;
+            targetGrabId = item.id;
+          }
+        });
+        if (activeStep === 3 && spawnedItems.some((i: any) => i.id === 'Pendulum Stand')) {
+          const bobWorldPos = new THREE.Vector2(0.2, 3.4 - 0.6 - pendulumLength * 2.5);
+          if (new THREE.Vector2(targetX, targetY).distanceTo(bobWorldPos) < 2.2) {
+            targetGrabId = 'HangingBob';
+          }
+        }
+      }
+
+      if (targetGrabId === 'HangingBob' || (activeStep === 3 && targetGrabId === null)) {
         const stand = spawnedItems.find((i: any) => i.id === 'Pendulum Stand');
         if (stand) {
           isDraggingHangingBob.current = true;
           labAudio.playGrabSound();
         }
-      }
-
-      if (hoveredItemIdRef.current && hoveredItemIdRef.current !== 'HangingBob') {
-        const grabId = hoveredItemIdRef.current;
-        draggedItemIdRef.current = grabId;
+      } else if (targetGrabId) {
+        draggedItemIdRef.current = targetGrabId;
         labAudio.playGrabSound();
-        setSpawnedItems((prev: any) => prev.map((i: any) => i.id === grabId ? { ...i, isDragging: true } : i));
+        const grp = itemGroupsRef.current[targetGrabId];
+        if (grp) {
+          grp.position.set(targetX, targetY, 1.8);
+        }
       }
     }
 
@@ -412,9 +434,12 @@ function PendulumScene({ getPointer, activeStep, setActiveStep, setCurrentStep, 
       pendulumArmRef.current.rotation.z = angle;
     }
 
-    // Dragging regular bench items (lerped follow)
+    // Dragging regular bench items (direct 3D transform, zero React state overhead)
     if (ptr.active && draggedItemIdRef.current) {
-      setSpawnedItems((prev: any) => prev.map((i: any) => i.id === draggedItemIdRef.current ? { ...i, x: targetPosRef.current.x, y: targetPosRef.current.y } : i));
+      const grp = itemGroupsRef.current[draggedItemIdRef.current];
+      if (grp) {
+        grp.position.set(targetPosRef.current.x, targetPosRef.current.y, 1.8);
+      }
     }
 
     // Release transition
@@ -430,13 +455,16 @@ function PendulumScene({ getPointer, activeStep, setActiveStep, setCurrentStep, 
 
       if (draggedItemIdRef.current) {
         const itemId = draggedItemIdRef.current;
+        const dropX = targetPosRef.current.x;
+        const dropY = targetPosRef.current.y;
+
         setSpawnedItems((prev: any) => {
           const item = prev.find((i: any) => i.id === itemId);
           if (!item) return prev;
 
           const stand = prev.find((i: any) => i.id === 'Pendulum Stand');
           if (stand) {
-            const distToStand = new THREE.Vector2(item.x, item.y).distanceTo(new THREE.Vector2(stand.x, stand.y + 1));
+            const distToStand = new THREE.Vector2(dropX, dropY).distanceTo(new THREE.Vector2(stand.x, stand.y + 1));
             if (distToStand < 3.2) {
               const expected = EXPERIMENT_STEPS[activeStep - 1];
               if (expected && expected.expectedTool === item.id) {
@@ -466,7 +494,7 @@ function PendulumScene({ getPointer, activeStep, setActiveStep, setCurrentStep, 
             }
           }
           labAudio.playReleaseSound();
-          return prev.map((i: any) => i.id === item.id ? { ...i, isDragging: false, y: -0.6 } : i);
+          return prev.map((i: any) => i.id === item.id ? { ...i, isDragging: false, x: dropX, y: -0.6 } : i);
         });
         draggedItemIdRef.current = null;
       }
@@ -536,6 +564,7 @@ function PendulumScene({ getPointer, activeStep, setActiveStep, setCurrentStep, 
         return (
           <group 
             key={item.id} 
+            ref={(el) => { if (el) itemGroupsRef.current[item.id] = el; }}
             position={[item.x, item.y, item.isDragging ? 1.8 : 0]} 
             scale={[scale, scale, scale]}
           >

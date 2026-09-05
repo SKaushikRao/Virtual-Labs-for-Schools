@@ -373,6 +373,7 @@ function CrystallizationScene({
   const { viewport } = useThree();
   const draggedItemIdRef = useRef<string | null>(null);
   const hoveredItemIdRef = useRef<string | null>(null);
+  const itemGroupsRef = useRef<{ [key: string]: THREE.Group | null }>({});
   const wasActive = useRef(false);
   const targetPosRef = useRef(new THREE.Vector3());
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -396,10 +397,10 @@ function CrystallizationScene({
     const targetY = -(ptr.y * 2 - 1) * (viewport.height / 2);
     targetPosRef.current.lerp(new THREE.Vector3(targetX, targetY, 2), 0.35);
 
-    // Hover detection
+    // Hover detection - evaluates against instantaneous pointer coords
     if (!draggedItemIdRef.current) {
       let foundHover: string | null = null;
-      let minHoverDist = 2.5;
+      let minHoverDist = 2.6;
 
       spawnedItems.forEach((item: any) => {
         if (item.id === 'Tripod Burner') return;
@@ -420,12 +421,28 @@ function CrystallizationScene({
     const grabbed = ptr.active && !wasActive.current;
     const released = !ptr.active && wasActive.current;
 
-    // Grab item
-    if (grabbed && hoveredItemIdRef.current) {
-      const grabId = hoveredItemIdRef.current;
-      draggedItemIdRef.current = grabId;
-      labAudio.playGrabSound();
-      setSpawnedItems((prev: any) => prev.map((i: any) => (i.id === grabId ? { ...i, isDragging: true } : i)));
+    // Grab item - Instantaneous pickup on pinch
+    if (grabbed) {
+      let targetGrabId = hoveredItemIdRef.current;
+      if (!targetGrabId) {
+        let minGrabDist = 2.8;
+        spawnedItems.forEach((item: any) => {
+          if (item.id === 'Tripod Burner') return;
+          const dist = new THREE.Vector2(targetX, targetY).distanceTo(new THREE.Vector2(item.x, item.y));
+          if (dist < minGrabDist) {
+            minGrabDist = dist;
+            targetGrabId = item.id;
+          }
+        });
+      }
+      if (targetGrabId) {
+        draggedItemIdRef.current = targetGrabId;
+        labAudio.playGrabSound();
+        const grp = itemGroupsRef.current[targetGrabId];
+        if (grp) {
+          grp.position.set(targetX, targetY, 1.5);
+        }
+      }
     }
 
     const heldId = draggedItemIdRef.current;
@@ -451,72 +468,70 @@ function CrystallizationScene({
         if (heldId === 'Distilled Water' && activeStep === 2) {
           isPouringRef.current = true;
           sourcePositionRef.current.set(targetPosRef.current.x - 0.25, targetPosRef.current.y - 0.25, 0);
-          targetYRef.current = dishPos.y + 0.1;
+          targetYRef.current = dishPos.y + 0.2;
           streamColorRef.current.set('#aaddff');
 
-          volumeRef.current = Math.min(80, volumeRef.current + addedVol);
-          blendAndSetColor(colorRef, volumeRef.current, new THREE.Color('#aaddff'), addedVol);
+          volumeRef.current = Math.min(60, volumeRef.current + addedVol);
 
-          if (volumeRef.current >= 50 && !hasPromptedTarget.current) {
+          if (volumeRef.current >= 45 && !hasPromptedTarget.current) {
             hasPromptedTarget.current = true;
             labAudio.playSuccessChime();
-            setTargetPrompt("Target 50ml reached! Release bottle now.");
+            setTargetPrompt('Target reached (50ml solvent) — release bottle to finish step!');
           }
-          if (volumeRef.current >= 65 && !hasWarnedOverpour.current) {
+          if (volumeRef.current > 58 && !hasWarnedOverpour.current) {
             hasWarnedOverpour.current = true;
-            triggerMistake("Overfilled dish! Crystallization works best with 50ml solvent.");
+            triggerMistake('Overpoured water! Excess solvent delays crystallization.');
           }
         }
-        // Step 3: Dissolve CuSO4 Powder
+        // Step 3: Dissolving CuSO4 Powder
         else if (heldId === 'CuSO4 Powder' && activeStep === 3) {
           isPouringRef.current = true;
           sourcePositionRef.current.set(targetPosRef.current.x - 0.2, targetPosRef.current.y - 0.2, 0);
-          targetYRef.current = dishPos.y + 0.1;
+          targetYRef.current = dishPos.y + 0.2;
           streamColorRef.current.set('#2563eb');
 
-          blendAndSetColor(colorRef, volumeRef.current, new THREE.Color('#1d4ed8'), addedVol * 2.5);
-          
-          if (!hasPromptedTarget.current) {
-            hasPromptedTarget.current = true;
-            setTargetPrompt("CuSO4 dissolving! Release once deep saturated blue.");
-          }
+          setTargetPrompt('Adding Copper Sulphate solute — saturating aqueous solution.');
         }
-        // Step 4: Glass Stirrer heating & dissolving
+        // Step 4: Glass Stirrer
         else if (heldId === 'Stirrer' && activeStep === 4) {
           isPouringRef.current = false;
-          tempRef.current = Math.min(85, tempRef.current + 25 * delta);
-          if (tempRef.current >= 80 && !hasPromptedTarget.current) {
-            hasPromptedTarget.current = true;
-            setTargetPrompt("Saturation temperature reached (85°C)! Ready for cooling.");
-          }
-        } else {
+          tempRef.current = Math.min(85, tempRef.current + delta * 25);
+          setTargetPrompt(`Stirring & Heating: ${tempRef.current.toFixed(0)}°C (Target: 85°C saturation).`);
+        }
+        // Step 5: Cooling Setup
+        else if (heldId === 'Cooling Dish' && activeStep === 5) {
           isPouringRef.current = false;
+          setTargetPrompt('Placing solution in watch-glass for undisturbed cooling and nucleation.');
         }
       } else {
         isPouringRef.current = false;
       }
 
-      // Update dragging position
-      setSpawnedItems((prev: any) =>
-        prev.map((i: any) => (i.id === heldId ? { ...i, x: targetPosRef.current.x, y: targetPosRef.current.y } : i))
-      );
+      // Smoothly drag held item in 3D (Zero React state overhead)
+      const grp = itemGroupsRef.current[heldId];
+      if (grp) {
+        grp.position.set(targetPosRef.current.x, targetPosRef.current.y, 1.5);
+      }
     } else {
       isPouringRef.current = false;
     }
 
-    // Release Item
+    // Item Release & Step Transition
     if (released && heldId) {
       labAudio.playReleaseSound();
       setTargetPrompt(null);
       hasPromptedTarget.current = false;
       hasWarnedOverpour.current = false;
 
+      const dropX = targetPosRef.current.x;
+      const dropY = targetPosRef.current.y;
+
       setSpawnedItems((prev: any) => {
         const item = prev.find((i: any) => i.id === heldId);
         if (!item || !tripod) return prev;
 
         const dishPos = new THREE.Vector2(tripod.x, tripod.y + 1.2);
-        const distToDish = new THREE.Vector2(item.x, item.y).distanceTo(dishPos);
+        const distToDish = new THREE.Vector2(dropX, dropY).distanceTo(dishPos);
 
         if (distToDish < 3.2) {
           const expected = EXPERIMENT_STEPS[activeStep - 1];
@@ -558,7 +573,7 @@ function CrystallizationScene({
             triggerMistake(`Incorrect tool! For Step ${activeStep}, you need: ${expected?.expectedTool}`);
           }
         }
-        return prev.map((i: any) => (i.id === heldId ? { ...i, isDragging: false, y: -0.6 } : i));
+        return prev.map((i: any) => (i.id === heldId ? { ...i, isDragging: false, x: dropX, y: -0.6 } : i));
       });
       draggedItemIdRef.current = null;
     }
@@ -612,7 +627,11 @@ function CrystallizationScene({
       )}
 
       {spawnedItems.map((item: any) => (
-        <group key={item.id} position={[item.x, item.y, item.isDragging ? 1.5 : 0]}>
+        <group
+          key={item.id}
+          ref={(el) => { if (el) itemGroupsRef.current[item.id] = el; }}
+          position={[item.x, item.y, item.isDragging ? 1.5 : 0]}
+        >
           {item.type === 'Apparatus' && (
             <group position={[0, 0, 0]}>
               {/* Tripod legs */}
