@@ -1,7 +1,8 @@
 import React from 'react';
 import { useAppStore, Language } from '../../store/useAppStore';
-import { Sparkles, HelpCircle, ArrowLeft, Globe, ShieldCheck } from 'lucide-react';
+import { Sparkles, HelpCircle, ArrowLeft, Globe, ShieldCheck, Mic, MicOff } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { useMindLabVoiceTrigger } from '../../hooks/useMindLabVoiceTrigger';
 
 interface LabTopBarProps {
   title: string;
@@ -25,6 +26,8 @@ export const LabTopBar: React.FC<LabTopBarProps> = ({
   const setLanguage = useAppStore((s) => s.setLanguage);
   const isMentorOpen = useAppStore((s) => s.isMentorOpen);
   const toggleMentor = useAppStore((s) => s.toggleMentor);
+
+  const { status: voiceStatus, isEnabled: isVoiceEnabled, toggleVoiceTrigger } = useMindLabVoiceTrigger();
 
   const subjectTheme = {
     Chemistry: {
@@ -80,8 +83,8 @@ export const LabTopBar: React.FC<LabTopBarProps> = ({
         </div>
       </div>
 
-      {/* Right: Actions, Tutorial, Language, Score, Mentor */}
-      <div className="flex items-center gap-3">
+      {/* Right: Actions, Tutorial, Language, Score, Voice Wake, Mentor */}
+      <div className="flex items-center gap-2.5">
         {/* Language Picker */}
         <div className="flex items-center bg-white/5 rounded-xl border border-white/10 p-0.5">
           <button
@@ -114,12 +117,56 @@ export const LabTopBar: React.FC<LabTopBarProps> = ({
         </div>
 
         {/* Camera Tracking Status */}
-        <div className="hidden lg:flex items-center gap-2 bg-white/5 px-3 py-1 rounded-xl border border-white/10">
+        <div className="hidden lg:flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-xl border border-white/10">
           <div className={cn("w-2 h-2 rounded-full", isReady ? "bg-emerald-400 animate-pulse" : "bg-amber-400")} />
           <span className="text-[10px] uppercase font-mono font-semibold tracking-wider text-white/70">
-            {isReady ? 'Vision Active' : 'Mouse Mode'}
+            {isReady ? 'Vision' : 'Mouse'}
           </span>
         </div>
+
+        {/* Voice Wake Phrase Indicator */}
+        {voiceStatus === 'detected' ? (
+          <div
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-purple-400 bg-purple-500/25 text-purple-200 text-xs font-mono shadow-[0_0_15px_rgba(168,85,247,0.6)] animate-pulse"
+            title='"Hello MindLab" detected - opening AI Lab Mentor'
+          >
+            <Sparkles size={13} className="text-purple-300 animate-spin" />
+            <span className="font-semibold text-[11px]">&ldquo;Hello MindLab&rdquo; detected</span>
+          </div>
+        ) : voiceStatus === 'listening' ? (
+          <button
+            onClick={toggleVoiceTrigger}
+            className="flex items-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 rounded-xl border border-emerald-500/30 text-xs font-mono text-emerald-300 transition-all hover:scale-105"
+            title='Listening for "Hello MindLab" (Click to mute voice wake)'
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <Mic size={13} className="text-emerald-400" />
+            <span className="hidden xl:inline text-[11px] text-emerald-200/90 font-medium">
+              🎙️ &ldquo;Hello MindLab&rdquo;
+            </span>
+            <span className="xl:hidden text-[10px]">Mic On</span>
+          </button>
+        ) : voiceStatus === 'paused' ? (
+          <button
+            onClick={toggleVoiceTrigger}
+            className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 px-2.5 py-1.5 rounded-xl border border-white/10 text-xs font-mono text-white/50 hover:text-white/80 transition-all"
+            title='Voice Wake Paused (Click to listen for "Hello MindLab")'
+          >
+            <MicOff size={13} className="text-white/40" />
+            <span className="hidden xl:inline text-[10px]">Voice: Paused</span>
+          </button>
+        ) : (
+          <div
+            className="hidden lg:flex items-center gap-1 bg-white/5 px-2 py-1.5 rounded-xl border border-white/5 text-[10px] font-mono text-white/30"
+            title="Speech Recognition API not supported in this browser"
+          >
+            <MicOff size={12} />
+            <span>Voice N/A</span>
+          </div>
+        )}
 
         {/* Gesture Tutorial Button */}
         <button

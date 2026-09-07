@@ -14,6 +14,7 @@ import { LabTopBar } from '../components/ui/LabTopBar';
 import { GestureCursor } from '../components/ui/GestureCursor';
 import { AIMentorPanel } from '../components/mentor/AIMentorPanel';
 import { GestureTutorial } from '../components/GestureTutorial';
+import { WebcamVisionOverlay } from '../components/camera/WebcamVisionOverlay';
 
 export interface AnatomyPart {
   id: string;
@@ -135,12 +136,13 @@ function classifyHand(hand: HandData) {
 
 export function HumanHeartLab() {
   const addScore = useAppStore((state) => state.addScore);
+  const score = useAppStore((state) => state.score);
   const setCurrentStep = useAppStore((state) => state.setCurrentStep);
   const setTotalSteps = useAppStore((state) => state.setTotalSteps);
   const setExperiment = useAppStore((state) => state.setExperiment);
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const { isReady, handStateRef, handsRef } = useHandTracking(videoRef);
+  const { isReady, handStateRef, handsRef, lastGesture } = useHandTracking(videoRef);
   const getPointer = usePointerInput(handStateRef);
 
   const [selectedPart, setSelectedPart] = useState<AnatomyPart | null>(null);
@@ -384,17 +386,17 @@ export function HumanHeartLab() {
             />
             <span className="text-xs font-mono font-medium text-white/95">{gestureStatus}</span>
           </div>
-
-          <video
-            ref={videoRef}
-            playsInline
-            muted
-            className="absolute w-36 h-28 top-20 right-6 object-cover rounded-2xl border border-white/20 opacity-40 z-10 scale-x-[-1] pointer-events-none"
-          />
         </div>
 
-        {/* Right Info & Details Panel */}
+        {/* Right Info & Details Panel with Webcam Vision HUD on Top */}
         <div className="w-80 flex flex-col gap-4 shrink-0 hidden lg:flex ml-auto z-20 pointer-events-none">
+          <WebcamVisionOverlay
+            videoRef={videoRef}
+            isReady={isReady}
+            handsRef={handsRef}
+            lastGesture={lastGesture}
+          />
+
           <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-5 shrink-0 pointer-events-auto shadow-2xl">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/60 font-mono">

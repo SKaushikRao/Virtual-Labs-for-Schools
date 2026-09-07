@@ -13,6 +13,7 @@ import { LabTopBar } from '../components/ui/LabTopBar';
 import { GestureCursor } from '../components/ui/GestureCursor';
 import { AIMentorPanel } from '../components/mentor/AIMentorPanel';
 import { GestureTutorial } from '../components/GestureTutorial';
+import { WebcamVisionOverlay } from '../components/camera/WebcamVisionOverlay';
 
 const EXPERIMENT_STEPS = [
   { id: 1, text: "Set up the Pendulum Stand on the bench.", expectedTool: "Pendulum Stand" },
@@ -37,7 +38,7 @@ export function SimplePendulumLab() {
   const setRecentMistake = useAppStore(state => state.setRecentMistake);
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const { isReady, cursorRef } = useHandTracking(videoRef);
+  const { isReady, cursorRef, handsRef, lastGesture } = useHandTracking(videoRef);
   const getPointer = usePointerInput(cursorRef);
 
   const [activeStep, setActiveStep] = useState(1);
@@ -253,12 +254,17 @@ export function SimplePendulumLab() {
               {activeStep <= 5 ? `Step ${activeStep}: ${EXPERIMENT_STEPS[activeStep-1].text}` : "T ∝ √L Law Confirmed!"}
             </span>
           </div>
-
-          <video ref={videoRef} playsInline muted className="absolute w-36 h-28 top-20 right-6 object-cover rounded-2xl border border-white/20 opacity-40 z-10 scale-x-[-1] pointer-events-none" />
         </div>
 
-        {/* Right Telemetry */}
-        <div className="w-72 flex flex-col gap-4 shrink-0 hidden lg:flex ml-auto z-20 pointer-events-none">
+        {/* Right Telemetry with Webcam Vision HUD on Top */}
+        <div className="w-80 flex flex-col gap-4 shrink-0 hidden lg:flex ml-auto z-20 pointer-events-none">
+          <WebcamVisionOverlay
+            videoRef={videoRef}
+            isReady={isReady}
+            handsRef={handsRef}
+            lastGesture={lastGesture}
+          />
+
           <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-5 shrink-0 pointer-events-auto shadow-2xl font-mono">
              <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-3">Stopwatch & Telemetry</h3>
              <div className="p-4 bg-black/50 border border-cyan-500/30 rounded-2xl text-center mb-3">

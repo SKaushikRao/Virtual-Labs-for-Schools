@@ -13,6 +13,7 @@ import { LabTopBar } from '../components/ui/LabTopBar';
 import { GestureCursor } from '../components/ui/GestureCursor';
 import { AIMentorPanel } from '../components/mentor/AIMentorPanel';
 import { GestureTutorial } from '../components/GestureTutorial';
+import { WebcamVisionOverlay } from '../components/camera/WebcamVisionOverlay';
 import { LayeredFlame, EMASmoother } from '../components/fluids/FluidSystem';
 
 const EXPERIMENT_STEPS = [
@@ -40,7 +41,7 @@ export function FlameTestLab() {
   const setRecentMistake = useAppStore((state) => state.setRecentMistake);
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const { isReady, cursorRef } = useHandTracking(videoRef);
+  const { isReady, cursorRef, handsRef, lastGesture } = useHandTracking(videoRef);
   const getPointer = usePointerInput(cursorRef);
 
   const [activeStep, setActiveStep] = useState(1);
@@ -303,17 +304,17 @@ export function FlameTestLab() {
                 : 'All Metal Ions Successfully Identified!'}
             </span>
           </div>
-
-          <video
-            ref={videoRef}
-            playsInline
-            muted
-            className="absolute w-36 h-28 top-20 right-6 object-cover rounded-2xl border border-white/20 opacity-40 z-10 scale-x-[-1] pointer-events-none"
-          />
         </div>
 
         {/* Right Telemetry */}
         <div className="w-80 flex flex-col gap-4 shrink-0 hidden lg:flex ml-auto z-20 pointer-events-none">
+          <WebcamVisionOverlay
+            videoRef={videoRef}
+            isReady={isReady}
+            handsRef={handsRef}
+            lastGesture={lastGesture}
+          />
+
           <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-5 shrink-0 pointer-events-auto shadow-2xl">
             <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-3 font-mono">
               Flame Spectrometry

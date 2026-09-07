@@ -107,19 +107,33 @@ export const GestureTutorial: React.FC = () => {
           <div className="min-h-[260px] flex flex-col justify-center">
             {stage === 'explain' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-white/5 p-4 rounded-2xl border border-white/10 text-center">
-                    <div className="text-3xl mb-2">👌</div>
-                    <div className="text-sm font-bold text-cyan-300 font-display mb-1">Pinch to Grab</div>
-                    <p className="text-xs text-white/60 leading-relaxed">
-                      Bring thumb and index finger together in front of the camera (or click and hold mouse).
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white/5 p-3.5 rounded-2xl border border-white/10 text-center">
+                    <div className="text-2xl mb-1.5">👌</div>
+                    <div className="text-xs font-bold text-cyan-300 font-display mb-1">Pinch to Grab</div>
+                    <p className="text-[11px] text-white/60 leading-relaxed">
+                      Bring thumb and index finger together to pinch lab apparatus or chemical bottles.
                     </p>
                   </div>
-                  <div className="bg-white/5 p-4 rounded-2xl border border-white/10 text-center">
-                    <div className="text-3xl mb-2">🖐️</div>
-                    <div className="text-sm font-bold text-emerald-300 font-display mb-1">Release to Drop</div>
-                    <p className="text-xs text-white/60 leading-relaxed">
-                      Open your fingers over the apparatus or beaker to react and pour chemical solutions.
+                  <div className="bg-white/5 p-3.5 rounded-2xl border border-white/10 text-center">
+                    <div className="text-2xl mb-1.5">🖐️</div>
+                    <div className="text-xs font-bold text-emerald-300 font-display mb-1">Release to Drop</div>
+                    <p className="text-[11px] text-white/60 leading-relaxed">
+                      Open fingers over the workbench or beaker to pour fluids and trigger reactions.
+                    </p>
+                  </div>
+                  <div className="bg-white/5 p-3.5 rounded-2xl border border-purple-500/30 text-center">
+                    <div className="text-2xl mb-1.5">✌️</div>
+                    <div className="text-xs font-bold text-purple-300 font-display mb-1">2-Finger V-Sign Swipe</div>
+                    <p className="text-[11px] text-white/60 leading-relaxed">
+                      Hold up 2 fingers (✌️) and swipe <strong className="text-purple-200">Right &rarr; Left</strong> to open, or <strong className="text-purple-200">Left &rarr; Right</strong> to close AI Mentor.
+                    </p>
+                  </div>
+                  <div className="bg-white/5 p-3.5 rounded-2xl border border-cyan-500/30 text-center">
+                    <div className="text-2xl mb-1.5">🎙️</div>
+                    <div className="text-xs font-bold text-cyan-300 font-display mb-1">Say &ldquo;Hello MindLab&rdquo;</div>
+                    <p className="text-[11px] text-white/60 leading-relaxed">
+                      Speak the wake phrase anytime to immediately open your AI Science Mentor.
                     </p>
                   </div>
                 </div>
