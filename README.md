@@ -7,8 +7,7 @@ designed to make practical, experiential learning accessible to students
 even when a physical laboratory is unavailable, expensive, or difficult
 to operate safely.
 
-Built for Smart India Hackathon 2026 under the Smart Education theme
-(SIH26207), MindLab combines 3D simulation, computer vision,
+ MindLab combines 3D simulation, computer vision,
 gesture-based interaction, AI guidance, and multilingual voice
 interaction in a browser-based learning environment.
 
@@ -17,7 +16,7 @@ The Problem
 Practical science education depends heavily on access to laboratory
 infrastructure.
 
-The UDISE+ 2024--25 figures referenced in our SIH proposal indicate that
+The UDISE+ 2024--25 figures referenced in our proposal indicate that
 only around 57% of schools have science-laboratory infrastructure. This
 leaves a substantial gap in access to practical learning.
 
@@ -363,12 +362,6 @@ Student retries the experiment
         v
 Experiment completed
 
-Smart India Hackathon 2026
-
-Problem Statement: SIH26207
-Theme: Smart Education
-Category: Software
-Team: MindLab
 
 Our proposition
 
@@ -380,7 +373,7 @@ intelligent, multilingual, and scalable.
 
 References
 
-The SIH proposal references the following sources:
+
 
 UDISE+ 2024--25 --- science laboratory access and school
 infrastructure
@@ -401,9 +394,6 @@ Intelligence in Education
 Team MindLab
 
 Built for Smart India Hackathon 2026.
-
-Problem Statement: SIH26207
-Theme: Smart Education
 
 Virtual Experiments. Real Opportunities.
 
