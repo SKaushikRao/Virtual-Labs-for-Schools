@@ -46,8 +46,8 @@ export const AIMentorPanel: React.FC = () => {
         selectedLanguage === 'hi'
           ? 'नमस्ते! मैं MindLab AI हूँ, आपका साइंस लैब मेंटर। कोई भी सवाल पूछें या किसी स्टेप में मदद चाहिए तो बेझिझक कहें!'
           : selectedLanguage === 'te'
-          ? 'నమస్కారం! నేను MindLab AI, మీ సైన్స్ ల్యాబ్ మెంటార్‌ని. ఏదైనా సందేహం ఉంటే లేదా సహాయం కావాలంటే అడగండి!'
-          : "Hey there! I'm MindLab AI, your virtual science lab mentor. Ask me anything about what's happening or if you get stuck!",
+            ? 'నమస్కారం! నేను MindLab AI, మీ సైన్స్ ల్యాబ్ మెంటార్‌ని. ఏదైనా సందేహం ఉంటే లేదా సహాయం కావాలంటే అడగండి!'
+            : "Hey there! I'm MindLab AI, your virtual science lab mentor. Ask me anything about what's happening or if you get stuck!",
       language: selectedLanguage,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
@@ -85,8 +85,8 @@ export const AIMentorPanel: React.FC = () => {
             selectedLanguage === 'hi'
               ? 'नमस्ते! मैं MindLab AI हूँ, आपका साइंस लैब मेंटर। कोई भी सवाल पूछें या किसी स्टेप में मदद चाहिए तो बेझिझक कहें!'
               : selectedLanguage === 'te'
-              ? 'నమస్కారం! నేను MindLab AI, మీ సైన్స్ ల్యాబ్ మెంటార్‌ని. ఏదైనా సందేహం ఉంటే లేదా సహాయం కావాలంటే అడగండి!'
-              : "Hey there! I'm MindLab AI, your virtual science lab mentor. Ask me anything about what's happening or if you get stuck!",
+                ? 'నమస్కారం! నేను MindLab AI, మీ సైన్స్ ల్యాబ్ మెంటార్‌ని. ఏదైనా సందేహం ఉంటే లేదా సహాయం కావాలంటే అడగండి!'
+                : "Hey there! I'm MindLab AI, your virtual science lab mentor. Ask me anything about what's happening or if you get stuck!",
           language: selectedLanguage,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         };
@@ -110,8 +110,8 @@ export const AIMentorPanel: React.FC = () => {
       langPref === 'hi'
         ? (process.env.ELEVENLABS_VOICE_HI || 'onwK4e9ZLuTAKqWW03F9')
         : langPref === 'te'
-        ? (process.env.ELEVENLABS_VOICE_TE || 'onwK4e9ZLuTAKqWW03F9')
-        : (process.env.ELEVENLABS_VOICE_EN || 'JBFqnCBsd6RMkjVDRZzb');
+          ? (process.env.ELEVENLABS_VOICE_TE || 'onwK4e9ZLuTAKqWW03F9')
+          : (process.env.ELEVENLABS_VOICE_EN || 'JBFqnCBsd6RMkjVDRZzb');
 
     try {
       const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
@@ -373,8 +373,8 @@ ${recentMistake ? `Recent Mis-step: ${recentMistake}` : ''}`;
           selectedLanguage === 'hi'
             ? 'लैब गाइड: अपनी स्क्रीन पर दिखाए गए स्टेप के अनुसार सही उपकरण और रसायनों का प्रयोग करें।'
             : selectedLanguage === 'te'
-            ? 'ల్యాబ్ గైడ్: స్క్రీన్‌పై చూపించిన దశల ప్రకారం సరైన పరికరాలను ఉపయోగించండి.'
-            : 'Lab Guide Tip: Observe the highlighted apparatus and follow the step sequence precisely.';
+              ? 'ల్యాబ్ గైడ్: స్క్రీన్‌పై చూపించిన దశల ప్రకారం సరైన పరికరాలను ఉపయోగించండి.'
+              : 'Lab Guide Tip: Observe the highlighted apparatus and follow the step sequence precisely.';
       }
     }
 
@@ -413,8 +413,8 @@ ${recentMistake ? `Recent Mis-step: ${recentMistake}` : ''}`;
         typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
           ? 'audio/webm;codecs=opus'
           : typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/webm')
-          ? 'audio/webm'
-          : '';
+            ? 'audio/webm'
+            : '';
 
       const mediaRecorder = mimeType
         ? new MediaRecorder(stream, { mimeType })
@@ -430,7 +430,7 @@ ${recentMistake ? `Recent Mis-step: ${recentMistake}` : ''}`;
         const audioBlob = new Blob(audioChunksRef.current, {
           type: mimeType || 'audio/webm',
         });
-        
+
         // Cleanup mic tracks
         if (streamRef.current) {
           streamRef.current.getTracks().forEach((track) => track.stop());
@@ -469,8 +469,8 @@ ${recentMistake ? `Recent Mis-step: ${recentMistake}` : ''}`;
             selectedLanguage === 'hi'
               ? 'hi-IN'
               : selectedLanguage === 'te'
-              ? 'te-IN'
-              : 'en-US';
+                ? 'te-IN'
+                : 'en-US';
           recognition.continuous = true;
           recognition.interimResults = true;
 
@@ -804,8 +804,8 @@ ${recentMistake ? `Recent Mis-step: ${recentMistake}` : ''}`;
                     selectedLanguage === 'hi'
                       ? 'MindLab AI से कोई भी सवाल पूछें...'
                       : selectedLanguage === 'te'
-                      ? 'MindLab AI ని ఏదైనా ప్రశ్న అడగండి...'
-                      : 'Ask MindLab AI anything about the lab...'
+                        ? 'MindLab AI ని ఏదైనా ప్రశ్న అడగండి...'
+                        : 'Ask MindLab AI anything about the lab...'
                   }
                   className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-4 py-2.5 text-xs text-white placeholder-white/40 focus:outline-none focus:border-purple-500/50 transition-colors"
                 />

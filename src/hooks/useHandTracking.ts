@@ -35,7 +35,6 @@ async function getSharedHandLandmarker(): Promise<HandLandmarker> {
       const vision = await FilesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
       );
-      
       try {
         const landmarker = await HandLandmarker.createFromOptions(vision, {
           baseOptions: {
@@ -44,9 +43,9 @@ async function getSharedHandLandmarker(): Promise<HandLandmarker> {
           },
           runningMode: "VIDEO",
           numHands: 2,
-          minHandDetectionConfidence: 0.5,
-          minHandPresenceConfidence: 0.5,
-          minTrackingConfidence: 0.5
+          minHandDetectionConfidence: 0.25,
+          minHandPresenceConfidence: 0.25,
+          minTrackingConfidence: 0.25
         });
         activeDelegate = "GPU";
         return landmarker;
@@ -59,9 +58,9 @@ async function getSharedHandLandmarker(): Promise<HandLandmarker> {
           },
           runningMode: "VIDEO",
           numHands: 2,
-          minHandDetectionConfidence: 0.5,
-          minHandPresenceConfidence: 0.5,
-          minTrackingConfidence: 0.5
+          minHandDetectionConfidence: 0.25,
+          minHandPresenceConfidence: 0.25,
+          minTrackingConfidence: 0.25
         });
         activeDelegate = "CPU";
         return landmarker;
@@ -171,7 +170,12 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
     async function setupCamera() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
+          video: {
+            width: { ideal: 1280, min: 640 },
+            height: { ideal: 720, min: 480 },
+            facingMode: 'user',
+            frameRate: { ideal: 60, min: 30 },
+          },
         });
         if (videoRef.current && isRunning) {
           videoRef.current.srcObject = stream;
@@ -184,6 +188,12 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
     }
 
     setupCamera();
+
+    // Range expander function: maps comfortable inner camera bounds [0.06, 0.94] to full [0.0, 1.0] screen reach
+    const mapExtendedRange = (val: number, minBound = 0.06, maxBound = 0.94): number => {
+      const scaled = (val - minBound) / (maxBound - minBound);
+      return Math.max(0, Math.min(1, scaled));
+    };
 
     function detectFrame() {
       if (!isRunning || !videoRef.current || !handLandmarkerRef.current) return;
@@ -244,9 +254,9 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
               handsRef.current = detectedHands;
 
               const primary = detectedHands[0];
-              const pIndex = primary.landmarks[8];
-              handStateRef.current.x = pIndex.x;
-              handStateRef.current.y = pIndex.y;
+              const pIndex = primary.landmarks[8] || primary.center;
+              handStateRef.current.x = mapExtendedRange(pIndex.x);
+              handStateRef.current.y = mapExtendedRange(pIndex.y);
               handStateRef.current.z = pIndex.z;
               handStateRef.current.pinchDistance = primary.pinchDistance;
               handStateRef.current.isPinching = primary.isPinching;

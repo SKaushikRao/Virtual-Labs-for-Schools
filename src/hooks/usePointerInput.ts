@@ -55,8 +55,8 @@ export function usePointerInput(handCursorRef: React.RefObject<{ x: number; y: n
     const hand = handCursorRef.current;
     const now = performance.now();
     
-    // Hand tracking active if valid coordinates and updated recently (< 200ms)
-    if (hand && hand.x >= 0 && hand.y >= 0 && hand.lastSeen && (now - hand.lastSeen < 200)) {
+    // Hand tracking active if valid coordinates and updated recently (< 400ms grace period)
+    if (hand && hand.x >= 0 && hand.y >= 0 && hand.lastSeen && (now - hand.lastSeen < 400)) {
       return { 
         x: hand.x, 
         y: hand.y, 

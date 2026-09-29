@@ -49,7 +49,7 @@ export function Landing() {
           className="mb-6 inline-flex items-center gap-2 glass-panel px-6 py-2 rounded-full border border-cyan-500/30 text-cyan-400 font-mono text-sm tracking-widest uppercase shadow-[0_0_20px_rgba(0,242,255,0.2)]"
         >
           <span>✨</span>
-          <span>SIH 2026 • Beta Prototype v1.0</span>
+          <span>Hack47 Hackathon • Beta Prototype v1.0</span>
         </motion.div>
         
         <h1 className="text-7xl md:text-9xl font-display font-bold mb-6 tracking-tighter leading-tight uppercase">
@@ -58,7 +58,7 @@ export function Landing() {
         </h1>
         
         <p className="text-xl md:text-2xl text-gray-300 font-light mb-16 max-w-2xl mx-auto leading-relaxed">
-          Interactive NCERT-based practical learning platform powered by spatial computing and AI. <span className="text-cyan-300 font-normal">Made for SIH 2026.</span>
+          Interactive NCERT-based practical learning platform powered by spatial computing and AI. <span className="text-cyan-300 font-normal">Made for Hack47 hackathon.</span>
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-6">

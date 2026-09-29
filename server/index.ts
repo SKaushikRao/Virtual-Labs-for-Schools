@@ -212,8 +212,8 @@ async function generateMentorResponse(
         language === 'te'
           ? 'నమస్కారం! ల్యాబ్ గైడ్ ప్రకారం: '
           : language === 'hi'
-          ? 'अरे दोस्त! लैब गाइड के अनुसार: '
-          : "Hey there! Here's a tip from the lab guide: ";
+            ? 'अरे दोस्त! लैब गाइड के अनुसार: '
+            : "Hey there! Here's a tip from the lab guide: ";
       const reply = `${prefix}${best}`;
       queryCache.set(cacheKey, { reply, timestamp: Date.now() });
       return { reply, detectedLanguage: language };
@@ -223,8 +223,8 @@ async function generateMentorResponse(
         language === 'te'
           ? 'ప్రయోగంలో సూచించిన విధంగా దశలను జాగ్రత్తగా అనుసరించండి.'
           : language === 'hi'
-          ? 'प्रयोग में ध्यान रखें और दिए गए निर्देशों का क्रम से पालन करें।'
-          : 'Keep following the step-by-step procedure on your screen. You are doing great!',
+            ? 'प्रयोग में ध्यान रखें और दिए गए निर्देशों का क्रम से पालन करें।'
+            : 'Keep following the step-by-step procedure on your screen. You are doing great!',
       detectedLanguage: language,
     };
   }
@@ -305,8 +305,8 @@ ${hasDirectMatch ? `Verified Lab Facts from NCERT Syllabus:\n${contextText}` : '
     ? language === 'te'
       ? (chunks[0].text_te || chunks[0].text_en)
       : language === 'hi'
-      ? (chunks[0].text_hi || chunks[0].text_en)
-      : chunks[0].text_en
+        ? (chunks[0].text_hi || chunks[0].text_en)
+        : chunks[0].text_en
     : 'Follow the step sequence on your screen.';
 
   return {

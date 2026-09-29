@@ -151,8 +151,8 @@ export function useMindLabVoiceTrigger() {
         selectedLanguage === 'hi'
           ? 'hi-IN'
           : selectedLanguage === 'te'
-          ? 'te-IN'
-          : navigator.language || 'en-IN';
+            ? 'te-IN'
+            : navigator.language || 'en-IN';
 
       recognition.onstart = () => {
         isRunningRef.current = true;
